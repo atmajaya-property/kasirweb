@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kasir Web - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* small helpers */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+  <div id="app" class="max-w-6xl mx-auto p-4">
+    <div id="loginPage" class="mx-auto max-w-md mt-16 bg-white rounded-2xl shadow p-6">
+      <h1 class="text-2xl font-semibold mb-4">Masuk ke Kasir Web</h1>
+      <p class="text-sm text-gray-500 mb-4">Masukkan username & password yang ada di Google Sheet.</p>
+      <div class="space-y-3">
+        <input id="username" placeholder="Username" class="w-full px-4 py-2 border rounded-lg focus:outline-none" />
+        <input id="password" placeholder="Password" type="password" class="w-full px-4 py-2 border rounded-lg focus:outline-none" />
+        <button id="btnLogin" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">Masuk</button>
+        <p id="loginMsg" class="text-sm text-red-500"></p>
+      </div>
+    </div>
+
+    <div id="dashboard" class="hidden">
+      <header class="flex items-center justify-between bg-white p-4 rounded-2xl shadow">
+        <div>
+          <h2 id="namaToko" class="text-xl font-bold">Nama Toko</h2>
+          <p id="namaKasir" class="text-sm text-gray-500">Kasir: -</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="btnLogout" class="bg-red-500 text-white px-3 py-2 rounded-md">Logout</button>
+        </div>
+      </header>
+
+      <main class="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <section class="lg:col-span-2 bg-white p-4 rounded-2xl shadow">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-semibold">Pilih Menu</h3>
+            <input id="searchMenu" placeholder="Cari menu..." class="px-3 py-1 border rounded-lg" />
+          </div>
+          <div id="menuGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-72 overflow-auto no-scrollbar p-1"></div>
+
+          <div class="mt-4">
+            <h4 class="font-medium mb-2">Tabel Pesanan</h4>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="text-left text-gray-600">
+                  <tr>
+                    <th class="p-2">No</th>
+                    <th class="p-2">Nama</th>
+                    <th class="p-2">Harga</th>
+                    <th class="p-2">Jumlah</th>
+                    <th class="p-2">Subtotal</th>
+                    <th class="p-2">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="orderTableBody"></tbody>
+              </table>
+            </div>
+
+            <div class="mt-4 flex justify-between items-center">
+              <div>
+                <button id="btnClear" class="px-3 py-2 rounded bg-gray-200">Kosongkan</button>
+              </div>
+              <div class="text-right">
+                <div class="text-sm text-gray-600">Total</div>
+                <div id="totalDisplay" class="text-2xl font-bold">Rp 0</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="bg-white p-4 rounded-2xl shadow flex flex-col gap-4">
+          <div>
+            <label class="text-sm text-gray-600">Total Belanja</label>
+            <div id="panelTotal" class="text-3xl font-bold mt-1">Rp 0</div>
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">Uang Diterima</label>
+            <input id="cashInput" type="number" min="0" placeholder="Masukkan uang pelanggan" class="w-full mt-1 px-3 py-2 border rounded-lg" />
+          </div>
+
+          <div>
+            <label class="text-sm text-gray-600">Kembalian</label>
+            <div id="changeDisplay" class="text-xl font-semibold mt-1">Rp 0</div>
+          </div>
+
+          <div class="flex gap-2">
+            <button id="btnSave" class="flex-1 py-2 bg-green-600 text-white rounded-lg">Simpan Transaksi</button>
+            <button id="btnPrint" class="flex-1 py-2 bg-indigo-600 text-white rounded-lg">Cetak & Kirim Telegram</button>
+          </div>
+
+          <div class="text-xs text-gray-500">* Setelah simpan, transaksi akan tersimpan di Google Sheet.</div>
+        </aside>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // ---------- CONFIG: GANTI DENGAN MILIKMU ----------
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxYh_OAi-eKxK6sd76TyFldsY5wS4tWhiMyo27rxHOye2UczIPa0mdsuDPhzBznHhC1/exec'; // <-- ganti
+    const TELEGRAM_TOKEN = '8412565103:AAEKkM2EzB7aLoGUJCUGkSS5SrbvYFvGJQg'; // <-- ganti
+    const TELEGRAM_CHAT_ID = '6004075051'; // <-- ganti (contoh: 123456789)
+    // -------------------------------------------------
+
+    // App state
+    let session = null; // { username, namaKasir, idToko, namaToko }
+    let menuList = []; // loaded menu objects
+    let orderItems = []; // { id, nama, harga, jumlah, subtotal }
+
+    // Helpers
+    function rupiah(v){
+      return 'Rp ' + Number(v).toLocaleString('id-ID');
+    }
+
+    function $(id){return document.getElementById(id)}
+
+    // ---------- AUTH / LOGIN ----------
+    async function tryAutoLogin(){
+      const s = localStorage.getItem('kasir_session');
+      if (s){
+        session = JSON.parse(s);
+        showDashboard();
+        await loadMenu();
+      }
+    }
+
+    async function login(){
+      const username = $('username').value.trim();
+      const password = $('password').value.trim();
+      $('loginMsg').textContent = '';
+      if (!username || !password){ $('loginMsg').textContent = 'Isi username & password.'; return; }
+
+      const payload = { action: 'login', username, password };
+      try{
+        const res = await fetch(API_URL, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, // <-- PERBAIKAN UTAMA
+          body: JSON.stringify(payload) 
+        });
+        const j = await res.json();
+        if (j.success){
+          session = { username, namaKasir: j.namaKasir, idToko: j.idToko, namaToko: j.namaToko };
+          localStorage.setItem('kasir_session', JSON.stringify(session));
+          showDashboard();
+          await loadMenu();
+        } else {
+          $('loginMsg').textContent = j.message || 'Login gagal';
+        }
+      } catch(err){
+        console.error(err);
+        $('loginMsg').textContent = 'Gagal terhubung ke server. Cek API_URL atau Koneksi.';
+      }
+    }
+
+    function logout(){
+      localStorage.removeItem('kasir_session');
+      session = null;
+      orderItems = [];
+      renderOrders();
+      $('dashboard').classList.add('hidden');
+      $('loginPage').classList.remove('hidden');
+    }
+
+    function showDashboard(){
+      $('loginPage').classList.add('hidden');
+      $('dashboard').classList.remove('hidden');
+      $('namaKasir').textContent = 'Kasir: ' + (session.namaKasir || '-');
+      $('namaToko').textContent = session.namaToko || 'Toko';
+    }
+
+    // ---------- MENU LOADING ----------
+    async function loadMenu(){
+      try{
+        const payload = { action: 'getMenu', idToko: session.idToko };
+        const res = await fetch(API_URL, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, // <-- PERBAIKAN UTAMA
+          body: JSON.stringify(payload) 
+        });
+        const j = await res.json();
+        if (j.success){
+          menuList = j.data || [];
+          renderMenu(menuList);
+        } else {
+          alert('Gagal ambil menu: ' + (j.message || ''));
+        }
+      } catch(err){
+        console.error(err);
+        alert('Gagal terhubung ke server untuk ambil menu');
+      }
+    }
+
+    function renderMenu(list){
+      const container = $('menuGrid');
+      container.innerHTML = '';
+      list.forEach(m => {
+        const btn = document.createElement('button');
+        btn.className = 'bg-white p-3 rounded-lg shadow flex flex-col items-start gap-1 hover:bg-gray-50';
+        btn.innerHTML = `<div class="font-medium">${m.nama}</div><div class="text-xs text-gray-500">${rupiah(m.harga)}</div>`;
+        btn.addEventListener('click', () => addMenuToOrder(m));
+        container.appendChild(btn);
+      });
+    }
+
+    // ---------- ORDER LOGIC ----------
+    function addMenuToOrder(menu){
+      // If already exists, increment jumlah and focus that input
+      const found = orderItems.find(o => o.id === menu.id);
+      if (found){
+        found.jumlah += 1;
+        found.subtotal = found.jumlah * Number(found.harga);
+        renderOrders();
+        focusLastQty(found.id);
+        return;
+      }
+
+      const item = { id: menu.id, nama: menu.nama, harga: Number(menu.harga), jumlah: 1, subtotal: Number(menu.harga) };
+      orderItems.push(item);
+      renderOrders();
+      focusLastQty(item.id);
+    }
+
+    function renderOrders(){
+      const tbody = $('orderTableBody');
+      tbody.innerHTML = '';
+      orderItems.forEach((it, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="p-2">${idx+1}</td>
+          <td class="p-2">${it.nama}</td>
+          <td class="p-2">${rupiah(it.harga)}</td>
+          <td class="p-2"><input data-id="${it.id}" type="number" min="1" class="w-16 px-2 py-1 border rounded qtyInput" value="${it.jumlah}" /></td>
+          <td class="p-2">${rupiah(it.subtotal)}</td>
+          <td class="p-2"><button data-id="${it.id}" class="px-2 py-1 bg-red-500 text-white rounded delBtn">Hapus</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+      attachOrderEvents();
+      updateTotals();
+    }
+
+    function attachOrderEvents(){
+      document.querySelectorAll('.qtyInput').forEach(inp => {
+        inp.addEventListener('change', (e) => {
+          const id = e.target.dataset.id;
+          const val = Math.max(1, Number(e.target.value) || 1); // minimal 1
+          e.target.value = val;
+          const item = orderItems.find(x => x.id === id);
+          if (item){
+            item.jumlah = val;
+            item.subtotal = item.jumlah * item.harga;
+            renderOrders();
+          }
+        });
+        inp.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') e.target.blur();
+        });
+      });
+      document.querySelectorAll('.delBtn').forEach(b => b.addEventListener('click', (e) => {
+        const id = e.target.dataset.id;
+        orderItems = orderItems.filter(x => x.id !== id);
+        renderOrders();
+      }));
+    }
+
+    function focusLastQty(id){
+      // Wait next repaint
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`input[data-id='${id}']`);
+        if (el){ el.focus(); el.select(); }
+      });
+    }
+
+    function updateTotals(){
+      const total = orderItems.reduce((s, x) => s + Number(x.subtotal), 0);
+      $('totalDisplay').textContent = rupiah(total);
+      $('panelTotal').textContent = rupiah(total);
+      calculateChange();
+    }
+
+    // ---------- CASH & CHANGE ----------
+    function calculateChange(){
+      const total = orderItems.reduce((s, x) => s + Number(x.subtotal), 0);
+      const cash = Number($('cashInput').value) || 0;
+      const change = Math.max(0, cash - total);
+      $('changeDisplay').textContent = rupiah(change);
+    }
+
+    // ---------- SAVE TRANSACTION ----------
+    async function saveTransaction(){
+      if (orderItems.length === 0){ alert('Belum ada item dipesan'); return; }
+      const total = orderItems.reduce((s, x) => s + Number(x.subtotal), 0);
+
+      const payload = {
+        action: 'saveTransaksi',
+        transaksi: orderItems.map(it => ({ nama: it.nama, jumlah: it.jumlah, harga: it.harga, subtotal: it.subtotal })),
+        total,
+        idToko: session.idToko,
+        kasir: session.namaKasir
+      };
+
+      try{
+        const res = await fetch(API_URL, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, // <-- PERBAIKAN UTAMA
+          body: JSON.stringify(payload) 
+        });
+        const j = await res.json();
+        if (j.success){
+          // after save, we can print and send telegram
+          const idTrans = j.idTransaksi || '';
+          alert('Transaksi tersimpan. ID: ' + idTrans);
+          return idTrans;
+        } else {
+          alert('Gagal simpan transaksi: ' + (j.message || ''));
+          return null;
+        }
+      } catch(err){
+        console.error(err);
+        alert('Gagal terhubung ke server untuk menyimpan transaksi');
+        return null;
+      }
+    }
+
+    // ---------- PRINT & TELEGRAM ----------
+    function buildInvoiceText(idTransaksi){
+      const toko = session.namaToko || '';
+      const kasir = session.namaKasir || '';
+      const tanggal = new Date().toLocaleString('id-ID');
+      let lines = [];
+      lines.push(`🧾 ${toko}`);
+      lines.push(`Kasir: ${kasir}`);
+      lines.push(`Tanggal: ${tanggal}`);
+      lines.push('');
+      lines.push('Pesanan:');
+      orderItems.forEach(it => {
+        lines.push(`${it.nama} x${it.jumlah} = ${Number(it.subtotal).toLocaleString('id-ID')}`);
+      });
+      lines.push('----------------------');
+      const total = orderItems.reduce((s, x) => s + Number(x.subtotal), 0);
+      lines.push(`TOTAL: ${total.toLocaleString('id-ID')}`);
+      lines.push('Terima kasih 🙏');
+      lines.push(`ID: ${idTransaksi}`);
+      return lines.join('\n');
+    }
+
+    async function sendToTelegram(text){
+      if (!TELEGRAM_TOKEN || !TELEGRAM_CHAT_ID){
+        console.warn('Telegram token/chat id belum diisi');
+        return { success: false, message: 'Telegram tidak terkonfigurasi' };
+      }
+      const encoded = encodeURIComponent(text);
+      const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encoded}`;
+      try{
+        const res = await fetch(url);
+        return await res.json();
+      } catch(err){
+        console.error('Failed to send telegram', err);
+        return { ok: false, error: err };
+      }
+    }
+
+    function printInvoice(idTransaksi){
+      const toko = session.namaToko || '';
+      const kasir = session.namaKasir || '';
+      const tanggal = new Date().toLocaleString('id-ID');
+      const total = orderItems.reduce((s, x) => s + Number(x.subtotal), 0);
+
+      let html = `
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Faktur</title>
+            <style>body{font-family:monospace;padding:20px} .center{text-align:center}</style>
+          </head>
+          <body>
+            <div class="center"><h3>${toko}</h3></div>
+            <div>Kasir: ${kasir}</div>
+            <div>Tanggal: ${tanggal}</div>
+            <hr />
+            <pre>`;
+      orderItems.forEach(it => {
+        html += `${it.nama} x${it.jumlah}  ${Number(it.subtotal).toLocaleString('id-ID')}\n`;
+      });
+      html += `</pre>
+            <hr />
+            <div><strong>TOTAL: ${total.toLocaleString('id-ID')}</strong></div>
+            <div>ID: ${idTransaksi}</div>
+            <div class="center" style="margin-top:12px">Terima kasih 🙏</div>
+          </body>
+        </html>
+      `;
+
+      const w = window.open('', '_blank');
+      w.document.write(html);
+      w.document.close();
+      w.print();
+    }
+
+    // ---------- UI Events ----------
+    window.addEventListener('load', async () => {
+      await tryAutoLogin();
+
+      $('btnLogin').addEventListener('click', login);
+      $('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+      $('btnLogout').addEventListener('click', logout);
+      $('btnClear').addEventListener('click', () => { 
+        orderItems = []; 
+        renderOrders(); 
+        $('cashInput').value = ''; 
+        calculateChange();
+      });
+      $('cashInput').addEventListener('input', calculateChange);
+
+      $('btnSave').addEventListener('click', async () => {
+        const idTrans = await saveTransaction();
+        if (idTrans){
+          // clear order after save (opsional, dapat diaktifkan kembali jika mau)
+          // orderItems = []; 
+          // renderOrders();
+          // $('cashInput').value = '';
+          // calculateChange();
+        }
+      });
+
+      $('btnPrint').addEventListener('click', async () => {
+        const idTrans = await saveTransaction();
+        if (!idTrans) return;
+        const text = buildInvoiceText(idTrans);
+        // print
+        printInvoice(idTrans);
+        // send to telegram (fire and forget)
+        const te = await sendToTelegram(text);
+        if (te && te.ok){
+          console.log('Telegram sent');
+        } else {
+          console.warn('Telegram failed', te);
+        }
+        // after printing & sending, clear order
+        orderItems = [];
+        renderOrders();
+        $('cashInput').value = '';
+        calculateChange();
+      });
+
+      $('searchMenu').addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        const filtered = menuList.filter(m => m.nama.toLowerCase().includes(q) || (m.kategori || '').toLowerCase().includes(q));
+        renderMenu(filtered);
+      });
+    });
+  </script>
+</body>
+</html>
