@@ -1,0 +1,39 @@
+<script>
+  // ---------- CONFIG: GANTI DENGAN MILIKMU ----------
+  // GANTI dengan URL Apps Script BARU yang diakhiri /exec
+  const API_URL = 'https://script.google.com/macros/s/AKfycbyTNFrNueTC4skDLvU-DH7sFUzfRMP-Lv061wH_uK1d9AxVP5qmYf4_hO3UAfEbJheIXg/exec'; 
+  // ... (Ganti Telegram token/chat ID jika mau, tapi tidak wajib untuk login) ...
+  // -------------------------------------------------
+
+  // ... (Fungsi Helper dan State dihilangkan untuk brevity) ...
+  function $(id){return document.getElementById(id)}
+
+  async function login(){
+    const username = $('username').value.trim();
+    const password = $('password').value.trim();
+    $('loginMsg').textContent = '';
+    if (!username || !password){ $('loginMsg').textContent = 'Isi username & password.'; return; }
+
+    const payload = { action: 'login', username, password };
+    try{
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, // <-- HEADER WAJIB
+        body: JSON.stringify(payload)
+      });
+      const j = await res.json();
+      if (j.success){
+        // Bagian ini hanya akan dijalankan JIKA server membalas { success: true, ... }
+        alert("LOGIN BERHASIL!"); 
+        // ... (lanjutan kode untuk dashboard) ...
+      } else {
+        $('loginMsg').textContent = j.message || 'Login gagal: Periksa kredensial';
+      }
+    } catch(err){
+      console.error(err);
+      $('loginMsg').textContent = 'Gagal terhubung ke server. Cek API_URL atau Koneksi.';
+    }
+  }
+
+  // ... (Sisa kode JS tetap sama) ...
+</script>
