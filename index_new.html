@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kasir Web</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="page-root">
+
+    <!-- LOGIN (tetap di index.html) -->
+    <section id="loginScreen" class="screen center-screen">
+      <div class="card login-card">
+        <h1 class="brand">Kasir Web</h1>
+        <p class="muted">Masuk menggunakan username & password dari Google Sheet</p>
+
+        <input id="inpUser" type="text" placeholder="Username" autocomplete="off" />
+        <input id="inpPass" type="password" placeholder="Password" />
+        <div class="row gap">
+          <button id="btnLogin" class="btn primary">Masuk</button>
+        </div>
+        <p id="loginError" class="error"></p>
+      </div>
+    </section>
+
+    <!-- DASHBOARD (hidden sampai login sukses) -->
+    <section id="appScreen" class="screen hidden">
+      <div class="header">
+        <div class="header-left">
+          <h2 id="shopName">Nama Toko</h2>
+          <div id="cashierInfo" class="muted">Kasir: -</div>
+        </div>
+        <div class="header-right">
+          <button id="btnLogout" class="btn outline">Logout</button>
+        </div>
+      </div>
+
+      <div class="content two-col">
+        <!-- LEFT: MENU -->
+        <aside class="panel menu-panel">
+          <div class="panel-head">
+            <h3>Daftar Menu</h3>
+            <input id="searchMenu" placeholder="Cari menu..." class="search" />
+          </div>
+          <div id="menuGrid" class="menu-grid"></div>
+        </aside>
+
+        <!-- RIGHT: KERANJANG -->
+        <aside class="panel cart-panel">
+          <div class="panel-head">
+            <h3>Keranjang</h3>
+            <div class="cart-actions">
+              <button id="btnClearCart" class="btn danger small">Kosongkan</button>
+            </div>
+          </div>
+
+          <div class="cart-body">
+            <table class="cart-table">
+              <thead>
+                <tr><th>No</th><th>Nama</th><th>Harga</th><th>Jumlah</th><th>Subtotal</th><th>Aksi</th></tr>
+              </thead>
+              <tbody id="cartTbody"></tbody>
+            </table>
+          </div>
+
+          <div class="cart-summary">
+            <div class="line"><span>Total</span><strong id="displayTotal">Rp 0</strong></div>
+
+            <label class="label-inline">
+              <span>Bayar (Tunai)</span>
+              <input id="inputCash" type="number" min="0" inputmode="numeric" />
+            </label>
+
+            <div class="line"><span>Kembali</span><strong id="displayChange">Rp 0</strong></div>
+
+            <div class="row gap">
+              <button id="btnSave" class="btn success">Simpan</button>
+              <button id="btnFinish" class="btn primary">Selesai & Cetak</button>
+            </div>
+
+            <div class="muted tiny">* Setelah selesai, data tersimpan ke Google Sheet dan Telegram terkirim (server-side).</div>
+            <div class="muted tiny">* Untuk cetak tanpa dialog, jalankan browser kasir di mode kiosk (lihat panduan di bawah).</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+  // ========== CONFIG ==========
+  const API_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr6wgRHFJY7PPqUGJxTidsy26mH-oQKUEq7CWYLNHc_Xpkha7yw6bY4Q/exec";
+  // ============================
+
+  // state
+  let session = null; // { username, namaKasir, idToko, namaToko }
+  let menuList = [];  // menu objects from server
+  let cart = [];      // { id, nama, harga, qty, subtotal }
+
+  // helpers
+  const $ = id => document.getElementById(id);
+  const rupiah = v => 'Rp ' + Number(v).toLocaleString('id-ID');
+
+  // ---------- AUTH ----------
+  async function doLogin() {
+    $('loginError').textContent = '';
+    const username = $('inpUser').value.trim();
+    const password = $('inpPass').value.trim();
+    if (!username || !password) { $('loginError').textContent = 'Isi username & password.'; return; }
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ action: 'login', username, password })
+      });
+      const j = await res.json();
+      if (j.success) {
+        session = { username, namaKasir: j.namaKasir, idToko: j.idToko, namaToko: j.namaToko };
+        localStorage.setItem('kasir_session', JSON.stringify(session));
+        showApp();
+        await loadMenu();
+      } else {
+        $('loginError').textContent = j.message || 'Login gagal';
+      }
+    } catch (err) {
+      console.error(err);
+      $('loginError').textContent = 'Gagal terhubung ke server.';
+    }
+  }
+
+  function tryAutoLogin() {
+    const s = localStorage.getItem('kasir_session');
+    if (s) {
+      session = JSON.parse(s);
+      showApp();
+      loadMenu();
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem('kasir_session');
+    session = null;
+    location.reload();
+  }
+
+  function showApp() {
+    $('loginScreen').classList.add('hidden');
+    $('appScreen').classList.remove('hidden');
+    $('shopName').textContent = session.namaToko || 'Toko';
+    $('shopName').textContent = session.namaToko || 'Toko';
+    $('shopName').id = 'shopName'; // ensure id for CSS
+    $('shopName').textContent = session.namaToko || 'Toko';
+    $('shopName').classList.add('shop-title'); // style hook
+    $('shopName').textContent = session.namaToko || 'Toko';
+    $('cashierInfo').textContent = 'Kasir: ' + (session.namaKasir || '-');
+  }
+
+  // ---------- MENU ----------
+  async function loadMenu() {
+    // request getMenu with idToko
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ action: 'getMenu', idToko: session.idToko })
+      });
+      const j = await res.json();
+      if (j.success) {
+        menuList = j.data || [];
+        renderMenu(menuList);
+      } else {
+        console.error('getMenu failed', j);
+        $('menuGrid').innerHTML = '<div class="muted">Gagal ambil menu.</div>';
+      }
+    } catch (err) {
+      console.error(err);
+      $('menuGrid').innerHTML = '<div class="muted">Gagal koneksi menu.</div>';
+    }
+  }
+
+  function renderMenu(list) {
+    const grid = $('menuGrid');
+    grid.innerHTML = '';
+    if (!list.length) { grid.innerHTML = '<div class="muted">Menu kosong.</div>'; return; }
+    list.forEach(m => {
+      const card = document.createElement('div');
+      card.className = 'menu-card';
+      card.innerHTML = `
+        <div class="menu-title">${m.nama}</div>
+        <div class="menu-meta">${m.kategori || ''}</div>
+        <div class="menu-price">${rupiah(m.harga)}</div>
+        <div class="menu-actions"><button class="btn small" data-id="${m.id}">Tambah</button></div>
+      `;
+      card.querySelector('button').addEventListener('click', () => addToCart(m));
+      grid.appendChild(card);
+    });
+  }
+
+  // ---------- CART ----------
+  function addToCart(menu) {
+    const found = cart.find(i => i.id === menu.id);
+    if (found) {
+      found.qty += 1;
+      found.subtotal = found.qty * Number(found.harga);
+    } else {
+      cart.push({ id: menu.id, nama: menu.nama, harga: Number(menu.harga), qty: 1, subtotal: Number(menu.harga) });
+    }
+    renderCart();
+    // focus last qty input
+    setTimeout(() => {
+      const last = document.querySelector('#cartTbody tr:last-child input.qtyInput');
+      if (last) { last.focus(); last.select(); }
+    }, 60);
+  }
+
+  function renderCart() {
+    const tbody = $('cartTbody');
+    tbody.innerHTML = '';
+    let total = 0;
+    cart.forEach((it, idx) => {
+      total += Number(it.subtotal);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${idx+1}</td>
+        <td class="td-left">${it.nama}</td>
+        <td>${rupiah(it.harga)}</td>
+        <td><input class="qtyInput" data-idx="${idx}" type="number" min="1" value="${it.qty}" /></td>
+        <td>${rupiah(it.subtotal)}</td>
+        <td><button class="btn small danger removeBtn" data-idx="${idx}">❌</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    $('displayTotal').textContent = rupiah(total);
+    // auto-fill cash with total and select it
+    $('inputCash').value = total;
+    $('inputCash').select();
+    $('displayChange').textContent = rupiah(Math.max(0, Number($('inputCash').value || 0) - total));
+
+    attachCartEvents();
+  }
+
+  function attachCartEvents() {
+    document.querySelectorAll('.qtyInput').forEach(inp => {
+      inp.onchange = (e) => {
+        const idx = Number(e.target.dataset.idx);
+        const val = parseInt(e.target.value) || 1;
+        cart[idx].qty = val;
+        cart[idx].subtotal = val * cart[idx].harga;
+        renderCart();
+      };
+      inp.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          // focus cash & select
+          const cash = $('inputCash');
+          cash.focus();
+          cash.select();
+        }
+      };
+    });
+
+    document.querySelectorAll('.removeBtn').forEach(b => {
+      b.onclick = (e) => {
+        const idx = Number(e.target.dataset.idx);
+        cart.splice(idx, 1);
+        renderCart();
+      };
+    });
+  }
+
+  // clear cart
+  function clearCart() {
+    if (!cart.length) return;
+    if (!confirm('Kosongkan keranjang?')) return;
+    cart = [];
+    renderCart();
+  }
+
+  // ---------- CASH & CHANGE ----------
+  function calculateChange() {
+    const total = cart.reduce((s, it) => s + Number(it.subtotal), 0);
+    const cash = Number($('inputCash').value) || 0;
+    const change = cash - total;
+    $('displayChange').textContent = rupiah(Math.max(0, change));
+  }
+
+  // ---------- SAVE TRANSACTION ----------
+  async function saveTransaction() {
+    if (!cart.length) { alert('Keranjang kosong'); return null; }
+    const total = cart.reduce((s, it) => s + Number(it.subtotal), 0);
+    const payload = {
+      action: 'saveTransaksi',
+      transaksi: cart.map(it => ({ nama: it.nama, jumlah: it.qty, harga: it.harga, subtotal: it.subtotal })),
+      total: total,
+      idToko: session.idToko,
+      kasir: session.namaKasir
+    };
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const j = await res.json();
+      if (j.success) {
+        return j; // contains idTransaksi etc
+      } else {
+        alert('Gagal simpan: ' + (j.message || 'unknown'));
+        return null;
+      }
+    } catch (err) {
+      console.error('saveTransaction err', err);
+      alert('Gagal terhubung ke server untuk menyimpan transaksi.');
+      return null;
+    }
+  }
+
+  // ---------- FINISH: save -> print -> clear ----------
+  async function finishAndPrint() {
+    // validate cash
+    const total = cart.reduce((s, it) => s + Number(it.subtotal), 0);
+    const cash = Number($('inputCash').value) || 0;
+    if (cash < total) { alert('Pembayaran kurang'); $('inputCash').focus(); return; }
+
+    // save
+    const result = await saveTransaction();
+    if (!result) return;
+
+    // print invoice (auto)
+    printInvoice(result.transaction_id || result.idTransaksi || new Date().getTime());
+
+    // clear
+    cart = [];
+    renderCart();
+    $('inputCash').value = 0;
+  }
+
+  // ---------- PRINT (membuka window lalu print) ----------
+  function printInvoice(idTrans) {
+    // build plain HTML invoice (thermal-friendly)
+    const toko = session.namaToko || '';
+    const kasir = session.namaKasir || '';
+    const tanggal = new Date().toLocaleString('id-ID');
+    let html = `
+      <html><head><meta charset="utf-8"><title>Faktur</title>
+      <style>
+        body{font-family:monospace; font-size:12px; padding:8px}
+        .center{text-align:center}
+      </style>
+      </head><body>
+      <div class="center"><h3>${toko}</h3></div>
+      <div>Kasir: ${kasir}</div>
+      <div>Tanggal: ${tanggal}</div>
+      <hr/>
+      <pre>
+    `;
+    cart.forEach(it => {
+      html += `${it.nama} x${it.qty}  ${Number(it.subtotal).toLocaleString('id-ID')}\n`;
+    });
+    html += `</pre><hr/>
+      <div><strong>TOTAL: ${Number(cart.reduce((s,i)=>s+i.subtotal,0)).toLocaleString('id-ID')}</strong></div>
+      <div>ID: ${idTrans}</div>
+      <div class="center" style="margin-top:12px">Terima kasih 🙏</div>
+      </body></html>
+    `;
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+
+    // attempt auto-print; in normal browser this shows print dialog.
+    // For silent printing, run browser in kiosk mode with --kiosk-printing.
+    w.print();
+    // close the window after a short delay
+    setTimeout(() => { try { w.close(); } catch(e){} }, 800);
+  }
+
+  // ---------- UI wiring ----------
+  window.addEventListener('load', () => {
+    // element aliases (short)
+    $('btnLogin').addEventListener('click', doLogin);
+    $('btnLogout').addEventListener('click', logout);
+    $('btnClearCart').addEventListener('click', clearCart);
+    $('btnSave').addEventListener('click', saveTransaction);
+    $('btnFinish').addEventListener('click', finishAndPrint);
+
+    $('inputCash').addEventListener('input', calculateChange);
+    $('inputCash').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') finishAndPrint();
+    });
+
+    $('searchMenu').addEventListener('input', (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      renderMenu(menuList.filter(m => (m.nama||'').toLowerCase().includes(q) || (m.kategori||'').toLowerCase().includes(q)));
+    });
+
+    tryAutoLogin();
+  });
+  </script>
+</body>
+</html>
