@@ -61,20 +61,21 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
   overflow:visible;
 }
 
-/* Menu section - TANPA SCROLL sama sekali */
-.menu-section {
-  background: var(--card);
-  border-radius: 12px;
-  padding: 0;
-  box-shadow: 0 8px 20px rgba(0,0,0,.35);
-  border: 1px solid rgba(255,255,255,.02);
-  display: flex;
-  flex-direction: column;
-  height: auto; /* Tidak ada tinggi tetap */
-  min-height: fit-content;
-  position: relative;
-  overflow: visible; /* Pastikan tidak ada overflow */
+/* Menu section - TANPA SCROLL */
+.menu-section{
+  background:var(--card);
+  border-radius:12px;
+  padding:0;
+  box-shadow:0 8px 20px rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.02);
+  display:flex;
+  flex-direction:column;
+  height:auto;
+  min-height:fit-content;
+  position:relative;
+  overflow:visible;
 }
+
 .menu-header{
   position:sticky;
   top:0;
@@ -99,7 +100,7 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
   align-items:center;
   margin:8px 0 0 0;
   position:sticky;
-  top:44px; /* Height of h2 + padding */
+  top:44px;
   z-index:9;
   background:var(--card);
   padding:5px 0;
@@ -126,21 +127,21 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
 }
 .search-icon{color:var(--muted);margin-right:4px}
 
-/* Menu list dengan 2 kolom */
-/* Container untuk list menu TANPA SCROLL */
-.menu-list-container {
-  padding: 10px;
-  overflow: visible; /* Tidak ada scroll */
-  flex: 1;
-  height: auto; /* Tinggi mengikuti konten */
+/* Menu list TANPA SCROLL */
+.menu-list-container{
+  min-height:fit-content;
+  padding:10px;
+  overflow:visible;
+  flex:1;
+  height:auto;
 }
-/* Menu list - sesuaikan tinggi otomatis */
-.menu-list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3px;
-  height: auto; /* Tinggi mengikuti konten */
-  max-height: none; /* Hapus batas maksimal */
+
+.menu-list{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:3px;
+  height:auto;
+  max-height:none;
 }
 
 .menu-item{
@@ -167,6 +168,15 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
   color:#000;
   transform:translateY(-1px);
   border-color:var(--accent);
+}
+
+.menu-item.search-highlight {
+  background: var(--accent) !important;
+  color: #000 !important;
+  border-color: var(--accent) !important;
+  transform: scale(1.05);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(20, 255, 236, 0.4);
 }
 
 .menu-item .nama{
@@ -222,18 +232,19 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
   flex:1;
 }
 
-/* Transaksi section - HANYA INI YANG BISA SCROLL */
-.transaksi-section {
-  background: var(--card);
-  border-radius: 12px;
-  padding: 10px;
-  box-shadow: 0 8px 20px rgba(0,0,0,.35);
-  border: 1px solid rgba(255,255,255,.02);
-  border: 2px solid var(--accent-dark);
-  display: flex;
-  flex-direction: column;
-  height: 50vh; /* Beri tinggi tetap */
-  min-height: 300px; /* Minimum height */
+/* Transaksi section - TANPA SCROLL, tampil minimal 6 item */
+.transaksi-section{
+  background:var(--card);
+  border-radius:12px;
+  padding:10px;
+  box-shadow:0 8px 20px rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.02);
+  min-height:fit-content;
+  border:2px solid var(--accent-dark);
+  display:flex;
+  flex-direction:column;
+  height:auto;
+  min-height:400px; /* Tinggi minimum untuk 6 item */
 }
 
 .transaksi-section h2{
@@ -243,13 +254,14 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
   font-size:1rem;
 }
 
-.transaksi-content {
-  background: rgba(255,255,255,0.02);
-  border-radius: 6px;
-  padding: 6px;
-  margin-bottom: 8px;
-  overflow-y: auto; /* HANYA INI YANG BISA SCROLL */
-  flex: 1;
+.transaksi-content{
+  min-height:fit-content;
+  background:rgba(255,255,255,0.02);
+  border-radius:6px;
+  padding:6px;
+  margin-bottom:8px;
+  overflow:visible; /* TANPA SCROLL */
+  flex:1;
 }
 
 #tblTransaksi{
@@ -311,42 +323,29 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
   align-items:center;
   gap:4px;
   flex:1;
+  position:relative;
 }
 
 .cash-input-container label{
   font-size:0.8rem;
   color:var(--muted);
   white-space:nowrap;
-}
-.cash-input-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
+  min-width:50px;
 }
 
-.cash-input-container::before {
-  content: "Rp";
-  position: absolute;
-  left: 45px; /* Sesuaikan posisi */
-  color: var(--muted);
-  font-size: 0.8rem;
-  z-index: 2;
-  background: #222;
-  padding: 0 4px;
-}
-
-#cashInput {
-  color: #00e676;
-  border-color: var(--accent);
-  background: #222;
-  padding-left: 60px; /* Beri ruang untuk "Rp" */
-  text-indent: 0; /* Pastikan teks tidak indent */
+.cash-input-container::before{
+  content:"Rp";
+  position:absolute;
+  left:55px;
+  top:50%;
+  transform:translateY(-50%);
+  color:var(--muted);
+  font-size:0.8rem;
+  z-index:2;
 }
 
 input[type="number"],input[type="text"]{
-  padding:6px;
+  padding:6px 6px 6px 30px;
   border-radius:5px;
   background:#333;
   color:#fff;
@@ -362,16 +361,7 @@ input[type="number"],input[type="text"]{
   color:#00e676;
   border-color:var(--accent);
   background:#222;
-  padding-left: 30px; /* Untuk memberi ruang untuk "Rp" */
-}
-
-.cash-input-container::before {
-  content: "Rp";
-  position: absolute;
-  left: 10px;
-  color: var(--muted);
-  font-size: 0.8rem;
-  z-index: 1;
+  padding-left:35px;
 }
 
 #kembaliArea{
@@ -454,44 +444,17 @@ input[type="number"],input[type="text"]{
     min-height:auto;
     height:calc(100vh - 60px);
   }
-@media (min-width: 768px) {
-  .menu-section {
-    height: auto;
-    max-height: 80vh;
-  }
-@media (min-width: 768px) {
-  .container {
-    height: calc(100vh - 60px);
-  }
-  
-  .menu-section {
-    height: auto;
-    max-height: calc(100vh - 80px);
-  }
-  
-  .transaksi-section {
-    height: auto;
-    max-height: calc(100vh - 80px);
-  }
-}
-  
-  .menu-list-container {
-    height: auto;
-    max-height: calc(80vh - 120px);
-  }
-}
   
   .menu-section{
     flex:0 0 280px;
     height:auto;
     overflow-y:auto;
-    height: auto;
   }
   
   .transaksi-section{
     flex:1;
-    overflow-y:auto;
-    height: auto;
+    height:auto;
+    min-height:auto;
   }
   
   .menu-list{
@@ -509,11 +472,12 @@ input[type="number"],input[type="text"]{
     font-size:0.75rem;
   }
 
-  /* Di desktop, tidak perlu sticky */
-  .menu-header,
-  .search-wrap,
-  .menu-pagination {
-    position:static;
+  .cash-input-container::before{
+    left:60px;
+  }
+  
+  #cashInput{
+    padding-left:40px;
   }
 }
 
@@ -713,9 +677,9 @@ input[type="number"],input[type="text"]{
       </div>
 
       <div class="input-area">
-        <div class="cash-input-container" style="position:relative">
+        <div class="cash-input-container">
           <label>💵 Bayar:</label>
-          <input id="cashInput" type="text" placeholder="Rp 0" />
+          <input id="cashInput" type="text" placeholder="0" />
         </div>
         <div id="kembaliArea">
           💰 Kembali: Rp <span id="uangKembali">0</span>
@@ -751,6 +715,48 @@ input[type="number"],input[type="text"]{
     return parseInt((s + '').replace(/[^\d]/g, '')) || 0;
   }
 
+  // Fungsi untuk auto-scroll ke hasil pencarian
+  function scrollToSearchResults() {
+    const menuItems = document.querySelectorAll('.menu-item');
+    const searchText = document.getElementById('menuSearch').value.toLowerCase();
+    
+    if (menuItems.length > 0) {
+        // Cari item yang paling sesuai dengan pencarian
+        let bestMatch = null;
+        let bestScore = 0;
+        
+        menuItems.forEach((item, index) => {
+            const itemText = item.querySelector('.nama').textContent.toLowerCase();
+            let score = 0;
+            
+            // Skor berdasarkan kecocokan
+            if (itemText === searchText) score = 100;
+            else if (itemText.startsWith(searchText)) score = 80;
+            else if (itemText.includes(searchText)) score = 60;
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestMatch = item;
+            }
+        });
+        
+        const targetItem = bestMatch || menuItems[0];
+        
+        // Scroll ke item target
+        targetItem.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center',
+            inline: 'nearest'
+        });
+        
+        // Highlight item
+        targetItem.classList.add('search-highlight');
+        setTimeout(() => {
+            targetItem.classList.remove('search-highlight');
+        }, 2000);
+    }
+  }
+
   // Render menu dengan pagination
   function renderMenuList(items = filteredMenu){
     const list = document.getElementById('menuList');
@@ -778,7 +784,7 @@ input[type="number"],input[type="text"]{
         <div class="harga">Rp${formatRupiah(hargaNum)}</div>
       `;
       btn.onclick = () => tambahMenu({ 
-        id: m.id || Date.now() + Math.random(), // Fallback ID jika tidak ada dari server
+        id: m.id, // PASTIKAN ID DARI SERVER
         nama: m.nama, 
         harga: hargaNum 
       });
@@ -803,7 +809,7 @@ input[type="number"],input[type="text"]{
     renderMenuList();
   }
 
-  // Load menu dari server
+  // Load menu dari server - PERBAIKAN BESAR DI SINI
   async function loadMenu(){
     const spinner = document.getElementById('menuLoading');
     if (spinner) spinner.style.display = 'flex';
@@ -813,16 +819,23 @@ input[type="number"],input[type="text"]{
         body: JSON.stringify({ action: 'getMenu', idToko: kasirInfo.idToko })
       });
       const data = await res.json();
-      console.log('Data menu dari server:', data); // Debug log
+      console.log('Data menu dari server:', data);
       
       if (data && data.success && Array.isArray(data.data)) {
-        menuData = data.data.map(m => ({
-          id: m.id, // Pastikan ID diambil dari data server
-          nama: m.nama,
-          kategori: (m.kategori || '').toString(),
-          harga: (typeof m.harga === 'string') ? parseNumberFromString(m.harga) : (m.harga || 0)
-        }));
-        console.log('Menu data setelah mapping:', menuData); // Debug log
+        // PERBAIKAN: Pastikan ID diambil dari server dengan benar
+        menuData = data.data.map((m, index) => {
+          // Cek semua kemungkinan field ID dari server
+          const idFromServer = m.id || m.ID || m.Id || m.kode || m.Kode || m.kode_menu || m.id_menu || `menu-${index}`;
+          
+          return {
+            id: idFromServer, // ID HARUS DARI SERVER
+            nama: m.nama || m.Nama || 'Menu tanpa nama',
+            kategori: (m.kategori || m.Kategori || '').toString(),
+            harga: (typeof m.harga === 'string') ? parseNumberFromString(m.harga) : (m.harga || m.Harga || 0)
+          };
+        });
+        
+        console.log('Menu data setelah mapping dengan ID dari server:', menuData);
         filteredMenu = [...menuData];
         currentPage = 1;
         renderMenuList();
@@ -842,46 +855,57 @@ input[type="number"],input[type="text"]{
     }
   }
 
-  // Filter pencarian
+  // Filter pencarian dengan auto-scroll
   function filterMenuByText(text){
     if (!text) {
       filteredMenu = [...menuData];
-    } else {
-      const q = text.trim().toLowerCase();
-      filteredMenu = menuData.filter(m => {
-        return (m.nama && m.nama.toLowerCase().includes(q)) || 
-               (m.kategori && m.kategori.toLowerCase().includes(q));
-      });
+      currentPage = 1;
+      renderMenuList();
+      return;
     }
+    
+    const q = text.trim().toLowerCase();
+    filteredMenu = menuData.filter(m => {
+      return (m.nama && m.nama.toLowerCase().includes(q)) || 
+             (m.kategori && m.kategori.toLowerCase().includes(q));
+    });
+    
     currentPage = 1;
     renderMenuList();
+    
+    // Auto-scroll ke hasil pencarian setelah render
+    if (filteredMenu.length > 0) {
+      setTimeout(scrollToSearchResults, 100);
+    }
   }
 
-  // Tambah menu ke transaksi
+  // Tambah menu ke transaksi - PERBAIKAN ID DI SINI
   function tambahMenu(menu){
-    console.log('Menambah menu dengan ID:', menu.id); // Debug log
+    console.log('Menambah menu dengan ID dari server:', menu.id);
     
-    // Cari item yang sudah ada di transaksi berdasarkan ID
+    // Cari item yang sudah ada di transaksi berdasarkan ID dari SERVER
     const existingIndex = transaksi.findIndex(t => t.id === menu.id);
     
     if (existingIndex !== -1) {
       // Jika sudah ada, tambah jumlah
       transaksi[existingIndex].jumlah = (transaksi[existingIndex].jumlah || 0) + 1;
       transaksi[existingIndex].subtotal = transaksi[existingIndex].jumlah * transaksi[existingIndex].harga;
+      console.log('Menu sudah ada, menambah jumlah. ID:', menu.id);
     } else {
-      // Jika belum ada, tambah item baru
+      // Jika belum ada, tambah item baru dengan ID dari SERVER
       transaksi.push({ 
-        id: menu.id,
+        id: menu.id, // ID HARUS DARI SERVER
         nama: menu.nama, 
         harga: menu.harga,
         jumlah: 1, 
         subtotal: menu.harga 
       });
+      console.log('Menu baru ditambahkan. ID:', menu.id);
     }
     
     renderTransaksi();
     
-    // Fokus ke input jumlah item yang benar berdasarkan ID
+    // Fokus ke input jumlah item yang benar berdasarkan ID dari SERVER
     setTimeout(() => {
       const inputs = document.querySelectorAll("#tblTransaksi input.jumlah-input");
       let targetInput = null;
@@ -1076,6 +1100,17 @@ input[type="number"],input[type="text"]{
       filterMenuByText(q);
     });
 
+    // Event listener untuk Enter di input pencarian
+    document.getElementById('menuSearch').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const searchText = e.target.value;
+        if (searchText.trim()) {
+          filterMenuByText(searchText);
+        }
+      }
+    });
+
     document.getElementById('clearSearch').addEventListener('click', () => {
       document.getElementById('menuSearch').value = '';
       filterMenuByText('');
@@ -1179,5 +1214,4 @@ input[type="number"],input[type="text"]{
 </script>
 
 </body>
-
 </html>
