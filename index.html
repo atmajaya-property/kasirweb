@@ -20,6 +20,7 @@ body{
   min-height:100vh;
   background:linear-gradient(135deg,var(--bg-1),var(--bg-2));
   color:#eee;
+  overflow-x: hidden;
 }
 .page{display:none;opacity:0;transform:translateY(8px);transition:all .25s ease}
 .page.active{display:block;opacity:1;transform:translateY(0)}
@@ -46,58 +47,74 @@ body{
 
 header{
   display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:#111;border-bottom:1px solid rgba(255,255,255,.03);
-  position:sticky;top:0;z-index:5;
+  position:sticky;top:0;z-index:100;
 }
 header h1{margin:0;color:var(--accent);font-size:1.1rem}
 
-/* LAYOUT MOBILE OPTIMIZED */
+/* LAYOUT MOBILE */
 .container{
   display:flex;
   flex-direction:column;
   gap:8px;
   padding:8px;
-  height:calc(100vh - 60px);
-  overflow:hidden;
+  min-height:calc(100vh - 60px);
+  overflow:visible;
 }
 
-/* Menu section - lebih besar untuk mobile */
-.menu-section{
+/* Menu section - TANPA SCROLL sama sekali */
+.menu-section {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 8px 20px rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.02);
+  display: flex;
+  flex-direction: column;
+  height: auto; /* Tidak ada tinggi tetap */
+  min-height: fit-content;
+  position: relative;
+  overflow: visible; /* Pastikan tidak ada overflow */
+}
+.menu-header{
+  position:sticky;
+  top:0;
+  z-index:10;
   background:var(--card);
-  border-radius:12px;
-  padding:12px;
-  box-shadow:0 8px 20px rgba(0,0,0,.35);
-  border:1px solid rgba(255,255,255,.02);
-  flex:0 0 55vh;
-  display:flex;
-  flex-direction:column;
-  min-height:0;
+  border-radius:12px 12px 0 0;
+  padding:10px;
+  border-bottom:1px solid rgba(255,255,255,.05);
 }
 
 .menu-section h2{
-  margin:0 0 10px 0;
+  margin:0;
   color:var(--accent);
   text-align:center;
-  font-size:1.1rem;
+  font-size:1rem;
 }
 
-/* Search */
+/* Search STICKY */
 .search-wrap{
   display:flex;
-  gap:8px;
+  gap:6px;
   align-items:center;
-  margin-bottom:10px;
-  flex-shrink:0;
+  margin:8px 0 0 0;
+  position:sticky;
+  top:44px; /* Height of h2 + padding */
+  z-index:9;
+  background:var(--card);
+  padding:5px 0;
 }
+
 .search-input{
   width:100%;
   background:#333;
-  border-radius:10px;
-  padding:10px 12px;
+  border-radius:8px;
+  padding:8px 10px;
   border:1px solid rgba(255,255,255,.03);
   color:#fff;
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:6px;
 }
 .search-input input{
   flex:1;
@@ -105,40 +122,44 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
   background:transparent;
   color:inherit;
   outline:none;
-  font-size:0.95rem;
+  font-size:0.9rem;
 }
-.search-icon{color:var(--muted);margin-right:6px}
+.search-icon{color:var(--muted);margin-right:4px}
 
 /* Menu list dengan 2 kolom */
-.menu-list-container{
-  flex:1;
-  overflow-y:auto;
-  min-height:0;
-  padding:2px;
+/* Container untuk list menu TANPA SCROLL */
+.menu-list-container {
+  padding: 10px;
+  overflow: visible; /* Tidak ada scroll */
+  flex: 1;
+  height: auto; /* Tinggi mengikuti konten */
 }
-
-.menu-list{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:6px;
+/* Menu list - sesuaikan tinggi otomatis */
+.menu-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  height: auto; /* Tinggi mengikuti konten */
+  max-height: none; /* Hapus batas maksimal */
 }
 
 .menu-item{
   background:#3a3a3a;
   border:1px solid rgba(255,255,255,.04);
   color:#fff;
-  padding:12px 6px;
-  border-radius:10px;
+  padding:6px 3px;
+  border-radius:6px;
   cursor:pointer;
   text-align:center;
   transition:all 0.2s ease;
   word-break:break-word;
-  min-height:80px;
+  min-height:50px;
   display:flex;
   flex-direction:column;
   justify-content:center;
   align-items:center;
-  border:2px solid transparent;
+  border:1px solid transparent;
+  font-size:0.75rem;
 }
 
 .menu-item:hover, .menu-item:active{
@@ -150,40 +171,43 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
 
 .menu-item .nama{
   font-weight:600;
-  margin-bottom:6px;
-  line-height:1.2;
-  font-size:0.9rem;
+  margin-bottom:2px;
+  line-height:1.1;
+  font-size:0.7rem;
 }
 
 .menu-item .harga{
-  font-size:0.8rem;
+  font-size:0.65rem;
   color:var(--accent);
   font-weight:700;
   background:rgba(20,255,236,0.1);
-  padding:2px 6px;
-  border-radius:4px;
+  padding:1px 3px;
+  border-radius:2px;
 }
 
-/* Pagination */
+/* Pagination - STICKY di bottom */
 .menu-pagination{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  margin-top:10px;
-  padding:8px 0;
+  padding:8px 10px;
   border-top:1px solid rgba(255,255,255,.1);
-  flex-shrink:0;
+  background:var(--card);
+  position:sticky;
+  bottom:0;
+  z-index:8;
+  border-radius:0 0 12px 12px;
 }
 
 .pagination-btn{
   background:#3a3a3a;
   border:1px solid rgba(255,255,255,.1);
   color:#fff;
-  padding:8px 12px;
-  border-radius:8px;
+  padding:5px 6px;
+  border-radius:5px;
   cursor:pointer;
-  font-size:0.85rem;
-  min-width:80px;
+  font-size:0.7rem;
+  min-width:60px;
 }
 
 .pagination-btn:disabled{
@@ -192,151 +216,187 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
 }
 
 .pagination-info{
-  font-size:0.8rem;
+  font-size:0.7rem;
   color:var(--muted);
   text-align:center;
   flex:1;
 }
 
-/* Transaksi section - lebih jelas untuk konfirmasi */
-.transaksi-section{
-  background:var(--card);
-  border-radius:12px;
-  padding:12px;
-  box-shadow:0 8px 20px rgba(0,0,0,.35);
-  border:1px solid rgba(255,255,255,.02);
-  flex:1;
-  display:flex;
-  flex-direction:column;
-  min-height:0;
-  border:2px solid var(--accent-dark);
+/* Transaksi section - HANYA INI YANG BISA SCROLL */
+.transaksi-section {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.35);
+  border: 1px solid rgba(255,255,255,.02);
+  border: 2px solid var(--accent-dark);
+  display: flex;
+  flex-direction: column;
+  height: 50vh; /* Beri tinggi tetap */
+  min-height: 300px; /* Minimum height */
 }
 
 .transaksi-section h2{
-  margin:0 0 12px 0;
+  margin:0 0 8px 0;
   color:var(--accent);
   text-align:center;
-  font-size:1.1rem;
+  font-size:1rem;
 }
 
-.transaksi-content{
-  flex:1;
-  overflow-y:auto;
-  min-height:0;
-  background:rgba(255,255,255,0.02);
-  border-radius:8px;
-  padding:8px;
+.transaksi-content {
+  background: rgba(255,255,255,0.02);
+  border-radius: 6px;
+  padding: 6px;
+  margin-bottom: 8px;
+  overflow-y: auto; /* HANYA INI YANG BISA SCROLL */
+  flex: 1;
 }
 
 #tblTransaksi{
   width:100%;
   border-collapse:collapse;
   color:#ddd;
-  font-size:0.9rem;
+  font-size:0.8rem;
 }
 #tblTransaksi th,#tblTransaksi td{
-  padding:8px 4px;
+  padding:5px 3px;
   border-bottom:1px solid rgba(255,255,255,.05);
   text-align:left;
 }
 #tblTransaksi th{
   color:var(--accent);
   font-weight:600;
-  font-size:0.85rem;
+  font-size:0.75rem;
   background:rgba(20,255,236,0.1);
 }
 #tblTransaksi th:last-child,#tblTransaksi td:last-child{
   text-align:right;
 }
 #tblTransaksi input.jumlah-input{
-  width:45px;
-  padding:4px;
-  border-radius:4px;
+  width:35px;
+  padding:2px;
+  border-radius:3px;
   border:1px solid rgba(255,255,255,.1);
   background:#333;
   color:#fff;
   text-align:center;
-  font-size:0.85rem;
+  font-size:0.75rem;
   font-weight:600;
 }
 
 /* Total area yang menonjol */
 .total-area{
   text-align:center;
-  margin:12px 0 8px 0;
+  margin:8px 0 6px 0;
   font-weight:700;
-  font-size:1.1rem;
-  padding:12px;
+  font-size:0.9rem;
+  padding:8px;
   background:var(--accent-dark);
-  border-radius:8px;
+  border-radius:6px;
   color:#fff;
-  border:2px solid var(--accent);
+  border:1px solid var(--accent);
 }
 
 .input-area{
   display:flex;
-  gap:10px;
+  gap:6px;
   align-items:center;
   justify-content:space-between;
-  margin:8px 0;
+  margin:6px 0;
   flex-wrap:wrap;
 }
 
 .cash-input-container{
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:4px;
   flex:1;
 }
 
 .cash-input-container label{
-  font-size:0.9rem;
+  font-size:0.8rem;
   color:var(--muted);
   white-space:nowrap;
 }
+.cash-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.cash-input-container::before {
+  content: "Rp";
+  position: absolute;
+  left: 45px; /* Sesuaikan posisi */
+  color: var(--muted);
+  font-size: 0.8rem;
+  z-index: 2;
+  background: #222;
+  padding: 0 4px;
+}
+
+#cashInput {
+  color: #00e676;
+  border-color: var(--accent);
+  background: #222;
+  padding-left: 60px; /* Beri ruang untuk "Rp" */
+  text-indent: 0; /* Pastikan teks tidak indent */
+}
 
 input[type="number"],input[type="text"]{
-  padding:10px;
-  border-radius:6px;
+  padding:6px;
+  border-radius:5px;
   background:#333;
   color:#fff;
   border:1px solid rgba(255,255,255,.1);
   text-align:right;
-  font-size:0.95rem;
+  font-size:0.8rem;
   font-weight:600;
   flex:1;
-  min-width:120px;
+  min-width:90px;
 }
 
 #cashInput{
   color:#00e676;
   border-color:var(--accent);
   background:#222;
+  padding-left: 30px; /* Untuk memberi ruang untuk "Rp" */
+}
+
+.cash-input-container::before {
+  content: "Rp";
+  position: absolute;
+  left: 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  z-index: 1;
 }
 
 #kembaliArea{
   color:var(--accent);
   font-weight:700;
-  font-size:0.95rem;
-  padding:8px 12px;
+  font-size:0.8rem;
+  padding:5px 6px;
   background:rgba(20,255,236,0.1);
-  border-radius:6px;
+  border-radius:5px;
   flex:1;
   text-align:center;
-  min-width:150px;
+  min-width:110px;
 }
 
 .selesai{
   width:100%;
-  margin-top:8px;
-  padding:14px;
-  border-radius:10px;
+  margin-top:6px;
+  padding:8px;
+  border-radius:6px;
   background:var(--accent);
   color:#000;
   font-weight:700;
   cursor:pointer;
   border:none;
-  font-size:1rem;
+  font-size:0.85rem;
   transition:all 0.2s ease;
 }
 .selesai:hover{
@@ -349,11 +409,11 @@ input[type="number"],input[type="text"]{
   background:#b71c1c;
   color:#fff;
   border:none;
-  border-radius:4px;
-  padding:4px 8px;
+  border-radius:2px;
+  padding:2px 4px;
   cursor:pointer;
   transition:.15s;
-  font-size:0.75rem;
+  font-size:0.65rem;
 }
 .hapus-btn:hover{
   background:#e53935;
@@ -369,15 +429,15 @@ input[type="number"],input[type="text"]{
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:8px;
+  gap:6px;
   color:var(--muted);
-  font-size:.9rem;
-  margin-top:10px;
-  height:100px;
+  font-size:.75rem;
+  margin-top:8px;
+  height:60px;
 }
 .spinner{
-  width:14px;
-  height:14px;
+  width:10px;
+  height:10px;
   border-radius:50%;
   border:2px solid rgba(20,255,236,.12);
   border-top-color:var(--accent);
@@ -391,29 +451,69 @@ input[type="number"],input[type="text"]{
     flex-direction:row;
     padding:12px;
     gap:12px;
+    min-height:auto;
+    height:calc(100vh - 60px);
+  }
+@media (min-width: 768px) {
+  .menu-section {
+    height: auto;
+    max-height: 80vh;
+  }
+@media (min-width: 768px) {
+  .container {
+    height: calc(100vh - 60px);
   }
   
+  .menu-section {
+    height: auto;
+    max-height: calc(100vh - 80px);
+  }
+  
+  .transaksi-section {
+    height: auto;
+    max-height: calc(100vh - 80px);
+  }
+}
+  
+  .menu-list-container {
+    height: auto;
+    max-height: calc(80vh - 120px);
+  }
+}
+  
   .menu-section{
-    flex:0 0 320px;
+    flex:0 0 280px;
     height:auto;
+    overflow-y:auto;
+    height: auto;
   }
   
   .transaksi-section{
     flex:1;
+    overflow-y:auto;
+    height: auto;
   }
   
   .menu-list{
     grid-template-columns:1fr 1fr;
-    gap:8px;
+    gap:4px;
   }
   
   .menu-item{
-    padding:14px 8px;
-    min-height:85px;
+    padding:8px 4px;
+    min-height:55px;
+    font-size:0.8rem;
   }
   
   .menu-item .nama{
-    font-size:0.95rem;
+    font-size:0.75rem;
+  }
+
+  /* Di desktop, tidak perlu sticky */
+  .menu-header,
+  .search-wrap,
+  .menu-pagination {
+    position:static;
   }
 }
 
@@ -565,13 +665,14 @@ input[type="number"],input[type="text"]{
 
   <div class="container">
     <section class="menu-section">
-      <h2>📋 Daftar Menu</h2>
-
-      <div class="search-wrap">
-        <div class="search-input">
-          <span class="search-icon">🔍</span>
-          <input id="menuSearch" type="search" placeholder="Cari menu..." aria-label="Cari menu" />
-          <button id="clearSearch" title="Bersihkan pencarian" style="background:transparent;border:none;color:var(--muted);cursor:pointer">✖</button>
+      <div class="menu-header">
+        <h2>📋 Menu</h2>
+        <div class="search-wrap">
+          <div class="search-input">
+            <span class="search-icon">🔍</span>
+            <input id="menuSearch" type="search" placeholder="Cari menu..." aria-label="Cari menu" />
+            <button id="clearSearch" title="Bersihkan pencarian" style="background:transparent;border:none;color:var(--muted);cursor:pointer">✖</button>
+          </div>
         </div>
       </div>
 
@@ -583,9 +684,9 @@ input[type="number"],input[type="text"]{
       </div>
 
       <div class="menu-pagination">
-        <button class="pagination-btn" id="prevPage">⏪ Sebelumnya</button>
-        <span class="pagination-info" id="pageInfo">Halaman 1</span>
-        <button class="pagination-btn" id="nextPage">Selanjutnya ⏩</button>
+        <button class="pagination-btn" id="prevPage">⏪ Prev</button>
+        <span class="pagination-info" id="pageInfo">Hal 1</span>
+        <button class="pagination-btn" id="nextPage">Next ⏩</button>
       </div>
     </section>
 
@@ -612,9 +713,9 @@ input[type="number"],input[type="text"]{
       </div>
 
       <div class="input-area">
-        <div class="cash-input-container">
+        <div class="cash-input-container" style="position:relative">
           <label>💵 Bayar:</label>
-          <input id="cashInput" type="text" placeholder="0" />
+          <input id="cashInput" type="text" placeholder="Rp 0" />
         </div>
         <div id="kembaliArea">
           💰 Kembali: Rp <span id="uangKembali">0</span>
@@ -622,7 +723,7 @@ input[type="number"],input[type="text"]{
       </div>
 
       <button id="btnSelesai" class="selesai">
-        🖨️ Selesai & Cetak Struk
+        🖨️ Selesai & Cetak
       </button>
     </section>
   </div>
@@ -631,7 +732,7 @@ input[type="number"],input[type="text"]{
 <script>
   // KONFIGURASI
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr6wgRHFJY7PPqUGJxTidsy26mH-oQKUEq7CWYLNHc_Xpkha7yw6bY4Q/exec";
-  const ITEMS_PER_PAGE = 12; // 6 kiri + 6 kanan = 12 total
+  const ITEMS_PER_PAGE = 20;
   
   let kasirInfo = {};
   let transaksi = [];
@@ -656,7 +757,7 @@ input[type="number"],input[type="text"]{
     list.innerHTML = '';
     
     if (!items || items.length === 0) {
-      list.innerHTML = "<div style='color:var(--muted); text-align:center; padding:20px; grid-column:1/-1;'>Tidak ada menu yang ditemukan</div>";
+      list.innerHTML = "<div style='color:var(--muted); text-align:center; padding:10px; grid-column:1/-1; font-size:0.7rem;'>Tidak ada menu</div>";
       updatePaginationInfo(0);
       return;
     }
@@ -676,7 +777,11 @@ input[type="number"],input[type="text"]{
         <div class="nama">${m.nama}</div>
         <div class="harga">Rp${formatRupiah(hargaNum)}</div>
       `;
-      btn.onclick = () => tambahMenu({ ...m, harga: hargaNum });
+      btn.onclick = () => tambahMenu({ 
+        id: m.id || Date.now() + Math.random(), // Fallback ID jika tidak ada dari server
+        nama: m.nama, 
+        harga: hargaNum 
+      });
       list.appendChild(btn);
     });
 
@@ -708,17 +813,21 @@ input[type="number"],input[type="text"]{
         body: JSON.stringify({ action: 'getMenu', idToko: kasirInfo.idToko })
       });
       const data = await res.json();
+      console.log('Data menu dari server:', data); // Debug log
+      
       if (data && data.success && Array.isArray(data.data)) {
         menuData = data.data.map(m => ({
-          id: m.id,
+          id: m.id, // Pastikan ID diambil dari data server
           nama: m.nama,
           kategori: (m.kategori || '').toString(),
           harga: (typeof m.harga === 'string') ? parseNumberFromString(m.harga) : (m.harga || 0)
         }));
+        console.log('Menu data setelah mapping:', menuData); // Debug log
         filteredMenu = [...menuData];
         currentPage = 1;
         renderMenuList();
       } else {
+        console.error('Format data tidak sesuai:', data);
         menuData = [];
         filteredMenu = [];
         renderMenuList([]);
@@ -750,23 +859,44 @@ input[type="number"],input[type="text"]{
 
   // Tambah menu ke transaksi
   function tambahMenu(menu){
-    const existing = transaksi.find(t => t.id === menu.id);
-    if (existing) {
-      existing.jumlah = (existing.jumlah || 0) + 1;
-      existing.subtotal = existing.jumlah * existing.harga;
+    console.log('Menambah menu dengan ID:', menu.id); // Debug log
+    
+    // Cari item yang sudah ada di transaksi berdasarkan ID
+    const existingIndex = transaksi.findIndex(t => t.id === menu.id);
+    
+    if (existingIndex !== -1) {
+      // Jika sudah ada, tambah jumlah
+      transaksi[existingIndex].jumlah = (transaksi[existingIndex].jumlah || 0) + 1;
+      transaksi[existingIndex].subtotal = transaksi[existingIndex].jumlah * transaksi[existingIndex].harga;
     } else {
-      transaksi.push({ ...menu, jumlah: 1, subtotal: menu.harga });
+      // Jika belum ada, tambah item baru
+      transaksi.push({ 
+        id: menu.id,
+        nama: menu.nama, 
+        harga: menu.harga,
+        jumlah: 1, 
+        subtotal: menu.harga 
+      });
     }
+    
     renderTransaksi();
     
-    // Feedback visual
-    const button = event.target.closest('.menu-item');
-    if (button) {
-      button.style.transform = 'scale(0.95)';
-      setTimeout(() => {
-        button.style.transform = '';
-      }, 150);
-    }
+    // Fokus ke input jumlah item yang benar berdasarkan ID
+    setTimeout(() => {
+      const inputs = document.querySelectorAll("#tblTransaksi input.jumlah-input");
+      let targetInput = null;
+      
+      if (existingIndex !== -1) {
+        targetInput = inputs[existingIndex];
+      } else {
+        targetInput = inputs[inputs.length - 1];
+      }
+      
+      if (targetInput) {
+        targetInput.focus();
+        targetInput.select();
+      }
+    }, 100);
   }
 
   // Render transaksi
@@ -781,7 +911,7 @@ input[type="number"],input[type="text"]{
       tr.innerHTML = `
         <td><strong>${item.nama}</strong></td>
         <td>Rp${formatRupiah(item.harga)}</td>
-        <td><input type="number" min="1" value="${item.jumlah}" data-index="${i}" class="jumlah-input"></td>
+        <td><input type="number" min="1" value="${item.jumlah}" data-index="${i}" data-id="${item.id}" class="jumlah-input"></td>
         <td><strong>Rp${formatRupiah(item.subtotal)}</strong></td>
         <td><button class="hapus-btn" data-index="${i}" title="Hapus item">❌</button></td>
       `;
@@ -790,7 +920,7 @@ input[type="number"],input[type="text"]{
 
     document.getElementById('totalHarga').textContent = formatRupiah(total);
 
-    // Event handlers
+    // Event handlers untuk hapus
     document.querySelectorAll('.hapus-btn').forEach(btn => {
       btn.addEventListener('click', (ev) => {
         const idx = parseInt(ev.currentTarget.dataset.index);
@@ -801,8 +931,24 @@ input[type="number"],input[type="text"]{
       });
     });
 
+    // Event handlers untuk input jumlah
     document.querySelectorAll('#tblTransaksi input.jumlah-input').forEach(inp => {
-      inp.addEventListener('input', e => {
+      inp.addEventListener('focus', function(e) {
+        e.target.select();
+      });
+      
+      inp.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const cashInput = document.getElementById('cashInput');
+          if (cashInput) {
+            cashInput.focus();
+            cashInput.select();
+          }
+        }
+      });
+      
+      inp.addEventListener('input', function(e) {
         const i = parseInt(e.target.dataset.index);
         let newJumlah = parseInt(e.target.value) || 0;
         if (newJumlah < 1) {
@@ -817,15 +963,13 @@ input[type="number"],input[type="text"]{
       });
     });
 
-    // Update cash input
+    // Update cash input otomatis sesuai total
     const cashInput = document.getElementById('cashInput');
-    if (cashInput && transaksi.length > 0) {
-      const totalHarga = transaksi.reduce((s,it)=> s + it.subtotal, 0);
+    const totalHarga = transaksi.reduce((s,it)=> s + it.subtotal, 0);
+    
+    if (cashInput) {
       cashInput.value = formatRupiah(totalHarga);
       hitungKembali();
-    } else if (cashInput) {
-      cashInput.value = '';
-      document.getElementById('uangKembali').textContent = '0';
     }
   }
 
@@ -844,11 +988,9 @@ input[type="number"],input[type="text"]{
     const bayar = parseNumberFromString(document.getElementById('cashInput').value);
     const kembali = bayar - total;
     
-    // Isi data struk
     document.getElementById('strukStoreName').textContent = kasirInfo.namaToko || 'TOKO KITA';
     document.getElementById('strukDate').textContent = new Date().toLocaleString('id-ID');
     
-    // Isi items
     const strukItems = document.getElementById('strukItems');
     strukItems.innerHTML = '';
     transaksi.forEach(item => {
@@ -862,7 +1004,6 @@ input[type="number"],input[type="text"]{
       strukItems.appendChild(tr);
     });
     
-    // Isi totals
     const strukTotals = document.getElementById('strukTotals');
     strukTotals.innerHTML = `
       <tr>
@@ -879,13 +1020,10 @@ input[type="number"],input[type="text"]{
       </tr>
     `;
     
-    // Tampilkan struk
     document.getElementById('strukContainer').style.display = 'block';
     
-    // Tunggu sebentar lalu print
     setTimeout(() => {
       window.print();
-      // Sembunyikan struk setelah print
       setTimeout(() => {
         document.getElementById('strukContainer').style.display = 'none';
       }, 100);
@@ -894,7 +1032,6 @@ input[type="number"],input[type="text"]{
 
   // Setup event handlers
   document.addEventListener('DOMContentLoaded', () => {
-    // Login
     document.getElementById('loginBtn').addEventListener('click', async () => {
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value.trim();
@@ -922,7 +1059,6 @@ input[type="number"],input[type="text"]{
       }
     });
 
-    // Logout
     document.getElementById('logoutBtn').addEventListener('click', () => {
       kasirInfo = {}; 
       transaksi = []; 
@@ -935,7 +1071,6 @@ input[type="number"],input[type="text"]{
       document.getElementById('loginPage').classList.add('active');
     });
 
-    // Search
     document.getElementById('menuSearch').addEventListener('input', (e) => {
       const q = e.target.value || '';
       filterMenuByText(q);
@@ -947,7 +1082,6 @@ input[type="number"],input[type="text"]{
       document.getElementById('menuSearch').focus();
     });
 
-    // Pagination
     document.getElementById('prevPage').addEventListener('click', () => {
       if (currentPage > 1) {
         goToPage(currentPage - 1);
@@ -961,7 +1095,6 @@ input[type="number"],input[type="text"]{
       }
     });
 
-    // Cash input
     document.getElementById('cashInput').addEventListener('input', function(e) {
       let digits = (e.target.value + '').replace(/[^\d]/g, '');
       if (digits === '') {
@@ -973,7 +1106,17 @@ input[type="number"],input[type="text"]{
       hitungKembali();
     });
 
-    // Selesai button
+    document.getElementById('cashInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('btnSelesai').click();
+      }
+    });
+
+    document.getElementById('cashInput').addEventListener('focus', function(e) {
+      e.target.select();
+    });
+
     document.getElementById('btnSelesai').addEventListener('click', async () => {
       if (!transaksi.length) {
         alert('Belum ada pesanan');
@@ -989,12 +1132,10 @@ input[type="number"],input[type="text"]{
         return;
       }
       
-      // Konfirmasi ke pembeli
       const konfirmasi = confirm(`Total: Rp ${formatRupiah(total)}\nBayar: Rp ${formatRupiah(bayar)}\nKembali: Rp ${formatRupiah(bayar - total)}\n\nLanjutkan transaksi?`);
       
       if (!konfirmasi) return;
       
-      // Kirim ke server
       try {
         const res = await fetch(SCRIPT_URL, {
           method: 'POST',
@@ -1011,10 +1152,8 @@ input[type="number"],input[type="text"]{
         
         const data = await res.json();
         if (data && data.success) {
-          // Cetak struk
           printStruk();
           
-          // Reset
           setTimeout(() => {
             transaksi = [];
             renderTransaksi();
@@ -1031,22 +1170,13 @@ input[type="number"],input[type="text"]{
       }
     });
 
-    // Enter untuk login
     document.getElementById('password').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
         document.getElementById('loginBtn').click();
-      }
-    });
-
-    // Enter untuk cash input
-    document.getElementById('cashInput').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        document.getElementById('btnSelesai').click();
       }
     });
   });
 </script>
 
 </body>
-
 </html>
