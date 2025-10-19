@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aplikasi Kasir Web</title>
+
+  <!-- Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+:root {
+  --bg-1:#161616; --bg-2:#252525; --card:#2a2a2a;
+  --muted:#8a8a8a; --accent:#14ffec; --accent-dark:#0d7377;
+}
+*{box-sizing:border-box}
+body{
+  font-family:'Poppins',sans-serif;
+  margin:0;
+  min-height:100vh;
+  background:linear-gradient(135deg,var(--bg-1),var(--bg-2));
+  color:#eee;
+}
+.page{display:none;opacity:0;transform:translateY(8px);transition:all .25s ease}
+.page.active{display:block;opacity:1;transform:translateY(0)}
+
+/* Login */
+.login-card{
+  max-width:360px;margin:12vh auto;background:var(--card);padding:26px;border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);text-align:center;border:1px solid rgba(255,255,255,.03)
+}
+.login-card h2{margin:0 0 12px;color:var(--accent)}
+.login-card input{width:92%;padding:10px;margin:8px 0;border-radius:10px;border:none;background:#373737;color:#fff}
+.login-card input:focus{box-shadow:0 0 6px rgba(20,255,236,.12)}
+.login-card button{
+  background:var(--accent-dark);
+  border:none;
+  padding:10px 20px;
+  border-radius:10px;
+  color:#fff;
+  font-weight:700;
+  cursor:pointer;
+  margin-top:10px;
+}
+.login-card button:hover{background:var(--accent);color:#000}
+
+header{
+  display:flex;justify-content:space-between;align-items:center;padding:12px 18px;background:#111;border-bottom:1px solid rgba(255,255,255,.03);
+  position:sticky;top:0;z-index:5;
+}
+header h1{margin:0;color:var(--accent);font-size:1.1rem}
+
+/* LAYOUT MOBILE OPTIMIZED */
+.container{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:8px;
+  height:calc(100vh - 60px);
+  overflow:hidden;
+}
+
+/* Menu section - lebih besar untuk mobile */
+.menu-section{
+  background:var(--card);
+  border-radius:12px;
+  padding:12px;
+  box-shadow:0 8px 20px rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.02);
+  flex:0 0 55vh;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+
+.menu-section h2{
+  margin:0 0 10px 0;
+  color:var(--accent);
+  text-align:center;
+  font-size:1.1rem;
+}
+
+/* Search */
+.search-wrap{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-bottom:10px;
+  flex-shrink:0;
+}
+.search-input{
+  width:100%;
+  background:#333;
+  border-radius:10px;
+  padding:10px 12px;
+  border:1px solid rgba(255,255,255,.03);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.search-input input{
+  flex:1;
+  border:none;
+  background:transparent;
+  color:inherit;
+  outline:none;
+  font-size:0.95rem;
+}
+.search-icon{color:var(--muted);margin-right:6px}
+
+/* Menu list dengan 2 kolom */
+.menu-list-container{
+  flex:1;
+  overflow-y:auto;
+  min-height:0;
+  padding:2px;
+}
+
+.menu-list{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+}
+
+.menu-item{
+  background:#3a3a3a;
+  border:1px solid rgba(255,255,255,.04);
+  color:#fff;
+  padding:12px 6px;
+  border-radius:10px;
+  cursor:pointer;
+  text-align:center;
+  transition:all 0.2s ease;
+  word-break:break-word;
+  min-height:80px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  border:2px solid transparent;
+}
+
+.menu-item:hover, .menu-item:active{
+  background:var(--accent);
+  color:#000;
+  transform:translateY(-1px);
+  border-color:var(--accent);
+}
+
+.menu-item .nama{
+  font-weight:600;
+  margin-bottom:6px;
+  line-height:1.2;
+  font-size:0.9rem;
+}
+
+.menu-item .harga{
+  font-size:0.8rem;
+  color:var(--accent);
+  font-weight:700;
+  background:rgba(20,255,236,0.1);
+  padding:2px 6px;
+  border-radius:4px;
+}
+
+/* Pagination */
+.menu-pagination{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top:10px;
+  padding:8px 0;
+  border-top:1px solid rgba(255,255,255,.1);
+  flex-shrink:0;
+}
+
+.pagination-btn{
+  background:#3a3a3a;
+  border:1px solid rgba(255,255,255,.1);
+  color:#fff;
+  padding:8px 12px;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:0.85rem;
+  min-width:80px;
+}
+
+.pagination-btn:disabled{
+  opacity:0.5;
+  cursor:not-allowed;
+}
+
+.pagination-info{
+  font-size:0.8rem;
+  color:var(--muted);
+  text-align:center;
+  flex:1;
+}
+
+/* Transaksi section - lebih jelas untuk konfirmasi */
+.transaksi-section{
+  background:var(--card);
+  border-radius:12px;
+  padding:12px;
+  box-shadow:0 8px 20px rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.02);
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  border:2px solid var(--accent-dark);
+}
+
+.transaksi-section h2{
+  margin:0 0 12px 0;
+  color:var(--accent);
+  text-align:center;
+  font-size:1.1rem;
+}
+
+.transaksi-content{
+  flex:1;
+  overflow-y:auto;
+  min-height:0;
+  background:rgba(255,255,255,0.02);
+  border-radius:8px;
+  padding:8px;
+}
+
+#tblTransaksi{
+  width:100%;
+  border-collapse:collapse;
+  color:#ddd;
+  font-size:0.9rem;
+}
+#tblTransaksi th,#tblTransaksi td{
+  padding:8px 4px;
+  border-bottom:1px solid rgba(255,255,255,.05);
+  text-align:left;
+}
+#tblTransaksi th{
+  color:var(--accent);
+  font-weight:600;
+  font-size:0.85rem;
+  background:rgba(20,255,236,0.1);
+}
+#tblTransaksi th:last-child,#tblTransaksi td:last-child{
+  text-align:right;
+}
+#tblTransaksi input.jumlah-input{
+  width:45px;
+  padding:4px;
+  border-radius:4px;
+  border:1px solid rgba(255,255,255,.1);
+  background:#333;
+  color:#fff;
+  text-align:center;
+  font-size:0.85rem;
+  font-weight:600;
+}
+
+/* Total area yang menonjol */
+.total-area{
+  text-align:center;
+  margin:12px 0 8px 0;
+  font-weight:700;
+  font-size:1.1rem;
+  padding:12px;
+  background:var(--accent-dark);
+  border-radius:8px;
+  color:#fff;
+  border:2px solid var(--accent);
+}
+
+.input-area{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  justify-content:space-between;
+  margin:8px 0;
+  flex-wrap:wrap;
+}
+
+.cash-input-container{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:1;
+}
+
+.cash-input-container label{
+  font-size:0.9rem;
+  color:var(--muted);
+  white-space:nowrap;
+}
+
+input[type="number"],input[type="text"]{
+  padding:10px;
+  border-radius:6px;
+  background:#333;
+  color:#fff;
+  border:1px solid rgba(255,255,255,.1);
+  text-align:right;
+  font-size:0.95rem;
+  font-weight:600;
+  flex:1;
+  min-width:120px;
+}
+
+#cashInput{
+  color:#00e676;
+  border-color:var(--accent);
+  background:#222;
+}
+
+#kembaliArea{
+  color:var(--accent);
+  font-weight:700;
+  font-size:0.95rem;
+  padding:8px 12px;
+  background:rgba(20,255,236,0.1);
+  border-radius:6px;
+  flex:1;
+  text-align:center;
+  min-width:150px;
+}
+
+.selesai{
+  width:100%;
+  margin-top:8px;
+  padding:14px;
+  border-radius:10px;
+  background:var(--accent);
+  color:#000;
+  font-weight:700;
+  cursor:pointer;
+  border:none;
+  font-size:1rem;
+  transition:all 0.2s ease;
+}
+.selesai:hover{
+  background:#00e676;
+  transform:translateY(-2px);
+  box-shadow:0 4px 12px rgba(20,255,236,0.3);
+}
+
+.hapus-btn{
+  background:#b71c1c;
+  color:#fff;
+  border:none;
+  border-radius:4px;
+  padding:4px 8px;
+  cursor:pointer;
+  transition:.15s;
+  font-size:0.75rem;
+}
+.hapus-btn:hover{
+  background:#e53935;
+}
+
+#cashInput:focus{
+  outline:2px solid #4caf50;
+  background:#222;
+}
+
+/* Loading */
+#menuLoading{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  color:var(--muted);
+  font-size:.9rem;
+  margin-top:10px;
+  height:100px;
+}
+.spinner{
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  border:2px solid rgba(20,255,236,.12);
+  border-top-color:var(--accent);
+  animation:spin .9s linear infinite
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Desktop layout */
+@media (min-width: 768px) {
+  .container{
+    flex-direction:row;
+    padding:12px;
+    gap:12px;
+  }
+  
+  .menu-section{
+    flex:0 0 320px;
+    height:auto;
+  }
+  
+  .transaksi-section{
+    flex:1;
+  }
+  
+  .menu-list{
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  
+  .menu-item{
+    padding:14px 8px;
+    min-height:85px;
+  }
+  
+  .menu-item .nama{
+    font-size:0.95rem;
+  }
+}
+
+/* STRUK SEDERHANA */
+.struk-container {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    position: static !important;
+  }
+  
+  .struk-container,
+  .struk-container * {
+    visibility: visible !important;
+    display: block !important;
+  }
+  
+  .struk-container {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 80mm !important;
+    min-height: 100mm !important;
+    margin: 0 !important;
+    padding: 3mm !important;
+    background: white !important;
+    color: black !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+  }
+  
+  .struk-header {
+    text-align: center !important;
+    margin-bottom: 2mm !important;
+    border-bottom: 1px dashed #000 !important;
+    padding-bottom: 1mm !important;
+  }
+  
+  .struk-header h2 {
+    font-size: 14px !important;
+    font-weight: bold !important;
+    margin: 0 !important;
+  }
+  
+  .struk-tanggal {
+    text-align: center !important;
+    font-size: 10px !important;
+    margin-bottom: 2mm !important;
+  }
+  
+  .struk-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin: 2mm 0 !important;
+    font-size: 11px !important;
+  }
+  
+  .struk-table th,
+  .struk-table td {
+    padding: 0.5mm 0 !important;
+    text-align: left !important;
+  }
+  
+  .struk-table th:nth-child(2),
+  .struk-table td:nth-child(2),
+  .struk-table th:nth-child(3),
+  .struk-table td:nth-child(3) {
+    text-align: right !important;
+  }
+  
+  .struk-table tfoot {
+    border-top: 1px dashed #000 !important;
+    margin-top: 2mm !important;
+  }
+  
+  .struk-table tfoot td {
+    padding-top: 1mm !important;
+    font-weight: bold !important;
+  }
+  
+  .struk-footer {
+    text-align: center !important;
+    margin-top: 3mm !important;
+    padding-top: 1mm !important;
+    border-top: 1px dashed #000 !important;
+    font-size: 10px !important;
+  }
+  
+  @page {
+    size: 80mm auto;
+    margin: 0mm;
+  }
+  
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+  </style>
+</head>
+<body>
+
+<!-- STRUK SEDERHANA -->
+<div class="struk-container" id="strukContainer">
+  <div class="struk-header">
+    <h2 id="strukStoreName">TOKO KITA</h2>
+  </div>
+  <div class="struk-tanggal" id="strukDate"></div>
+  <table class="struk-table">
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Harga</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody id="strukItems"></tbody>
+    <tfoot id="strukTotals"></tfoot>
+  </table>
+  <div class="struk-footer">
+    Terima Kasih
+  </div>
+</div>
+
+<!-- LOGIN PAGE -->
+<div id="loginPage" class="page active">
+  <div class="login-card">
+    <h2>Login Kasir</h2>
+    <input id="username" type="text" placeholder="Username" />
+    <input id="password" type="password" placeholder="Password" />
+    <button id="loginBtn">Masuk</button>
+    <p id="loginMessage" style="color:#ff9b9b;min-height:1.2em;margin-top:8px"></p>
+  </div>
+</div>
+
+<!-- KASIR PAGE -->
+<div id="kasirPage" class="page">
+  <header>
+    <h1 id="namaToko"></h1>
+    <button id="logoutBtn">Keluar</button>
+  </header>
+
+  <div class="container">
+    <section class="menu-section">
+      <h2>📋 Daftar Menu</h2>
+
+      <div class="search-wrap">
+        <div class="search-input">
+          <span class="search-icon">🔍</span>
+          <input id="menuSearch" type="search" placeholder="Cari menu..." aria-label="Cari menu" />
+          <button id="clearSearch" title="Bersihkan pencarian" style="background:transparent;border:none;color:var(--muted);cursor:pointer">✖</button>
+        </div>
+      </div>
+
+      <div class="menu-list-container">
+        <div id="menuList" class="menu-list"></div>
+        <div id="menuLoading" style="display:none">
+          <div class="spinner"></div><div>Memuat menu...</div>
+        </div>
+      </div>
+
+      <div class="menu-pagination">
+        <button class="pagination-btn" id="prevPage">⏪ Sebelumnya</button>
+        <span class="pagination-info" id="pageInfo">Halaman 1</span>
+        <button class="pagination-btn" id="nextPage">Selanjutnya ⏩</button>
+      </div>
+    </section>
+
+    <section class="transaksi-section">
+      <h2>💰 Transaksi</h2>
+      
+      <div class="transaksi-content">
+        <table id="tblTransaksi">
+          <thead>
+            <tr>
+              <th>Menu</th>
+              <th>Harga</th>
+              <th>Jml</th>
+              <th>Subtotal</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="total-area">
+        TOTAL: Rp <span id="totalHarga">0</span>
+      </div>
+
+      <div class="input-area">
+        <div class="cash-input-container">
+          <label>💵 Bayar:</label>
+          <input id="cashInput" type="text" placeholder="0" />
+        </div>
+        <div id="kembaliArea">
+          💰 Kembali: Rp <span id="uangKembali">0</span>
+        </div>
+      </div>
+
+      <button id="btnSelesai" class="selesai">
+        🖨️ Selesai & Cetak Struk
+      </button>
+    </section>
+  </div>
+</div>
+
+<script>
+  // KONFIGURASI
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr6wgRHFJY7PPqUGJxTidsy26mH-oQKUEq7CWYLNHc_Xpkha7yw6bY4Q/exec";
+  const ITEMS_PER_PAGE = 12; // 6 kiri + 6 kanan = 12 total
+  
+  let kasirInfo = {};
+  let transaksi = [];
+  let menuData = [];
+  let currentPage = 1;
+  let filteredMenu = [];
+
+  // Helper functions
+  function formatRupiah(angka){
+    const n = parseInt(angka) || 0;
+    return n.toLocaleString('id-ID');
+  }
+  
+  function parseNumberFromString(s){
+    if (!s) return 0;
+    return parseInt((s + '').replace(/[^\d]/g, '')) || 0;
+  }
+
+  // Render menu dengan pagination
+  function renderMenuList(items = filteredMenu){
+    const list = document.getElementById('menuList');
+    list.innerHTML = '';
+    
+    if (!items || items.length === 0) {
+      list.innerHTML = "<div style='color:var(--muted); text-align:center; padding:20px; grid-column:1/-1;'>Tidak ada menu yang ditemukan</div>";
+      updatePaginationInfo(0);
+      return;
+    }
+
+    // Hitung pagination
+    const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const itemsToShow = items.slice(startIndex, endIndex);
+
+    itemsToShow.forEach(m => {
+      const btn = document.createElement('button');
+      const hargaNum = (typeof m.harga === 'string') ? parseNumberFromString(m.harga) : (m.harga || 0);
+      
+      btn.className = 'menu-item';
+      btn.innerHTML = `
+        <div class="nama">${m.nama}</div>
+        <div class="harga">Rp${formatRupiah(hargaNum)}</div>
+      `;
+      btn.onclick = () => tambahMenu({ ...m, harga: hargaNum });
+      list.appendChild(btn);
+    });
+
+    updatePaginationInfo(items.length, totalPages);
+  }
+
+  function updatePaginationInfo(totalItems, totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE)) {
+    const pageInfo = document.getElementById('pageInfo');
+    const prevBtn = document.getElementById('prevPage');
+    const nextBtn = document.getElementById('nextPage');
+    
+    pageInfo.textContent = `Hal ${currentPage}/${totalPages}`;
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+  }
+
+  function goToPage(page) {
+    currentPage = page;
+    renderMenuList();
+  }
+
+  // Load menu dari server
+  async function loadMenu(){
+    const spinner = document.getElementById('menuLoading');
+    if (spinner) spinner.style.display = 'flex';
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'getMenu', idToko: kasirInfo.idToko })
+      });
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.data)) {
+        menuData = data.data.map(m => ({
+          id: m.id,
+          nama: m.nama,
+          kategori: (m.kategori || '').toString(),
+          harga: (typeof m.harga === 'string') ? parseNumberFromString(m.harga) : (m.harga || 0)
+        }));
+        filteredMenu = [...menuData];
+        currentPage = 1;
+        renderMenuList();
+      } else {
+        menuData = [];
+        filteredMenu = [];
+        renderMenuList([]);
+      }
+    } catch(err) {
+      console.error('loadMenu error', err);
+      menuData = [];
+      filteredMenu = [];
+      renderMenuList([]);
+    } finally {
+      if (spinner) spinner.style.display = 'none';
+    }
+  }
+
+  // Filter pencarian
+  function filterMenuByText(text){
+    if (!text) {
+      filteredMenu = [...menuData];
+    } else {
+      const q = text.trim().toLowerCase();
+      filteredMenu = menuData.filter(m => {
+        return (m.nama && m.nama.toLowerCase().includes(q)) || 
+               (m.kategori && m.kategori.toLowerCase().includes(q));
+      });
+    }
+    currentPage = 1;
+    renderMenuList();
+  }
+
+  // Tambah menu ke transaksi
+  function tambahMenu(menu){
+    const existing = transaksi.find(t => t.id === menu.id);
+    if (existing) {
+      existing.jumlah = (existing.jumlah || 0) + 1;
+      existing.subtotal = existing.jumlah * existing.harga;
+    } else {
+      transaksi.push({ ...menu, jumlah: 1, subtotal: menu.harga });
+    }
+    renderTransaksi();
+    
+    // Feedback visual
+    const button = event.target.closest('.menu-item');
+    if (button) {
+      button.style.transform = 'scale(0.95)';
+      setTimeout(() => {
+        button.style.transform = '';
+      }, 150);
+    }
+  }
+
+  // Render transaksi
+  function renderTransaksi(){
+    const tbody = document.querySelector('#tblTransaksi tbody');
+    tbody.innerHTML = '';
+    let total = 0;
+    
+    transaksi.forEach((item, i) => {
+      total += item.subtotal;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${item.nama}</strong></td>
+        <td>Rp${formatRupiah(item.harga)}</td>
+        <td><input type="number" min="1" value="${item.jumlah}" data-index="${i}" class="jumlah-input"></td>
+        <td><strong>Rp${formatRupiah(item.subtotal)}</strong></td>
+        <td><button class="hapus-btn" data-index="${i}" title="Hapus item">❌</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('totalHarga').textContent = formatRupiah(total);
+
+    // Event handlers
+    document.querySelectorAll('.hapus-btn').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        const idx = parseInt(ev.currentTarget.dataset.index);
+        if (!isNaN(idx)) {
+          transaksi.splice(idx, 1);
+          renderTransaksi();
+        }
+      });
+    });
+
+    document.querySelectorAll('#tblTransaksi input.jumlah-input').forEach(inp => {
+      inp.addEventListener('input', e => {
+        const i = parseInt(e.target.dataset.index);
+        let newJumlah = parseInt(e.target.value) || 0;
+        if (newJumlah < 1) {
+          if (!isNaN(i)) transaksi.splice(i, 1);
+        } else {
+          if (!isNaN(i) && transaksi[i]) {
+            transaksi[i].jumlah = newJumlah;
+            transaksi[i].subtotal = transaksi[i].jumlah * transaksi[i].harga;
+          }
+        }
+        renderTransaksi();
+      });
+    });
+
+    // Update cash input
+    const cashInput = document.getElementById('cashInput');
+    if (cashInput && transaksi.length > 0) {
+      const totalHarga = transaksi.reduce((s,it)=> s + it.subtotal, 0);
+      cashInput.value = formatRupiah(totalHarga);
+      hitungKembali();
+    } else if (cashInput) {
+      cashInput.value = '';
+      document.getElementById('uangKembali').textContent = '0';
+    }
+  }
+
+  function hitungKembali() {
+    const cashInput = document.getElementById('cashInput');
+    const bayar = parseNumberFromString(cashInput.value);
+    const total = transaksi.reduce((s,it) => s + it.subtotal, 0);
+    const kembali = bayar - total;
+    
+    document.getElementById('uangKembali').textContent = formatRupiah(kembali > 0 ? kembali : 0);
+  }
+
+  // PRINT STRUK
+  function printStruk() {
+    const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
+    const bayar = parseNumberFromString(document.getElementById('cashInput').value);
+    const kembali = bayar - total;
+    
+    // Isi data struk
+    document.getElementById('strukStoreName').textContent = kasirInfo.namaToko || 'TOKO KITA';
+    document.getElementById('strukDate').textContent = new Date().toLocaleString('id-ID');
+    
+    // Isi items
+    const strukItems = document.getElementById('strukItems');
+    strukItems.innerHTML = '';
+    transaksi.forEach(item => {
+      const tr = document.createElement('tr');
+      const nama = item.nama.length > 20 ? item.nama.substring(0, 20) + '...' : item.nama;
+      tr.innerHTML = `
+        <td>${nama} (${item.jumlah})</td>
+        <td>${formatRupiah(item.harga)}</td>
+        <td>${formatRupiah(item.subtotal)}</td>
+      `;
+      strukItems.appendChild(tr);
+    });
+    
+    // Isi totals
+    const strukTotals = document.getElementById('strukTotals');
+    strukTotals.innerHTML = `
+      <tr>
+        <td colspan="2">Total</td>
+        <td>${formatRupiah(total)}</td>
+      </tr>
+      <tr>
+        <td colspan="2">Bayar</td>
+        <td>${formatRupiah(bayar)}</td>
+      </tr>
+      <tr>
+        <td colspan="2">Kembali</td>
+        <td>${formatRupiah(kembali)}</td>
+      </tr>
+    `;
+    
+    // Tampilkan struk
+    document.getElementById('strukContainer').style.display = 'block';
+    
+    // Tunggu sebentar lalu print
+    setTimeout(() => {
+      window.print();
+      // Sembunyikan struk setelah print
+      setTimeout(() => {
+        document.getElementById('strukContainer').style.display = 'none';
+      }, 100);
+    }, 500);
+  }
+
+  // Setup event handlers
+  document.addEventListener('DOMContentLoaded', () => {
+    // Login
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+      document.getElementById('loginMessage').innerText = 'Memeriksa...';
+      
+      try {
+        const res = await fetch(SCRIPT_URL, { 
+          method: 'POST', 
+          body: JSON.stringify({ action: 'login', username, password }) 
+        });
+        const data = await res.json();
+        
+        if (data && data.success) {
+          kasirInfo = data;
+          document.getElementById('namaToko').innerText = kasirInfo.namaToko || 'Aplikasi Kasir';
+          document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+          document.getElementById('kasirPage').classList.add('active');
+          await loadMenu();
+          document.getElementById('loginMessage').innerText = '';
+        } else {
+          document.getElementById('loginMessage').innerText = 'Login gagal';
+        }
+      } catch(err) {
+        document.getElementById('loginMessage').innerText = 'Gagal terhubung ke server';
+      }
+    });
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      kasirInfo = {}; 
+      transaksi = []; 
+      menuData = [];
+      filteredMenu = [];
+      currentPage = 1;
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById('loginPage').classList.add('active');
+    });
+
+    // Search
+    document.getElementById('menuSearch').addEventListener('input', (e) => {
+      const q = e.target.value || '';
+      filterMenuByText(q);
+    });
+
+    document.getElementById('clearSearch').addEventListener('click', () => {
+      document.getElementById('menuSearch').value = '';
+      filterMenuByText('');
+      document.getElementById('menuSearch').focus();
+    });
+
+    // Pagination
+    document.getElementById('prevPage').addEventListener('click', () => {
+      if (currentPage > 1) {
+        goToPage(currentPage - 1);
+      }
+    });
+
+    document.getElementById('nextPage').addEventListener('click', () => {
+      const totalPages = Math.ceil(filteredMenu.length / ITEMS_PER_PAGE);
+      if (currentPage < totalPages) {
+        goToPage(currentPage + 1);
+      }
+    });
+
+    // Cash input
+    document.getElementById('cashInput').addEventListener('input', function(e) {
+      let digits = (e.target.value + '').replace(/[^\d]/g, '');
+      if (digits === '') {
+        e.target.value = '';
+        document.getElementById('uangKembali').textContent = '0';
+        return;
+      }
+      e.target.value = formatRupiah(digits);
+      hitungKembali();
+    });
+
+    // Selesai button
+    document.getElementById('btnSelesai').addEventListener('click', async () => {
+      if (!transaksi.length) {
+        alert('Belum ada pesanan');
+        return;
+      }
+      
+      const cashEl = document.getElementById('cashInput');
+      const total = transaksi.reduce((s,it) => s + it.subtotal, 0);
+      const bayar = parseNumberFromString(cashEl.value);
+      
+      if (bayar < total) {
+        alert('Jumlah bayar tunai kurang dari total!');
+        return;
+      }
+      
+      // Konfirmasi ke pembeli
+      const konfirmasi = confirm(`Total: Rp ${formatRupiah(total)}\nBayar: Rp ${formatRupiah(bayar)}\nKembali: Rp ${formatRupiah(bayar - total)}\n\nLanjutkan transaksi?`);
+      
+      if (!konfirmasi) return;
+      
+      // Kirim ke server
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'saveTransaksi',
+            transaksi: transaksi,
+            total: total,
+            idToko: kasirInfo.idToko,
+            kasir: kasirInfo.namaKasir || 'Kasir',
+            bayar: bayar, 
+            kembali: bayar - total
+          })
+        });
+        
+        const data = await res.json();
+        if (data && data.success) {
+          // Cetak struk
+          printStruk();
+          
+          // Reset
+          setTimeout(() => {
+            transaksi = [];
+            renderTransaksi();
+            cashEl.value = '';
+            document.getElementById('uangKembali').textContent = '0';
+            alert('Transaksi berhasil disimpan!');
+          }, 1000);
+          
+        } else {
+          alert('Gagal simpan transaksi');
+        }
+      } catch(err) {
+        alert('Gagal mengirim data ke server');
+      }
+    });
+
+    // Enter untuk login
+    document.getElementById('password').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('loginBtn').click();
+      }
+    });
+
+    // Enter untuk cash input
+    document.getElementById('cashInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('btnSelesai').click();
+      }
+    });
+  });
+</script>
+
+</body>
+</html>
