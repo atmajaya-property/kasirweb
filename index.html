@@ -1184,6 +1184,7 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
   }
 
  // PERBAIKAN: Tambah menu dengan fokus yang benar
+// PERBAIKAN: Tambah menu dengan fokus yang benar
 function tambahMenu(menu){
   const existingIndex = transaksi.findIndex(t => t.id === menu.id);
   
@@ -1234,8 +1235,17 @@ function renderTransaksi(){
   });
 
   document.getElementById('totalHarga').textContent = formatRupiah(total);
+  
+  // Auto-fill bayar dengan total
+  const cashInput = document.getElementById('cashInput');
+  if (total > 0) {
+    cashInput.value = formatRupiah(total);
+  } else {
+    cashInput.value = '0';
+  }
+  hitungKembali();
 
-  // Event handlers
+  // Event handlers untuk hapus
   document.querySelectorAll('.hapus-btn').forEach(btn => {
     btn.onclick = (ev) => {
       const idx = parseInt(ev.currentTarget.dataset.index);
@@ -1244,7 +1254,7 @@ function renderTransaksi(){
     };
   });
 
-  // PERBAIKAN: Event listeners untuk input jumlah
+  // Event listeners untuk input jumlah
   document.querySelectorAll('.jumlah-input').forEach(inp => {
     inp.oninput = function(e) {
       const i = parseInt(e.target.dataset.index);
@@ -1262,21 +1272,20 @@ function renderTransaksi(){
       e.target.select();
     };
     
-    // PERBAIKAN: Enter key untuk pindah ke cash input
-    inp.onkeydown = function(e) {
+    // Enter key untuk pindah ke cash input
+    inp.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
-        document.getElementById('cashInput').focus();
+        setTimeout(() => {
+          document.getElementById('cashInput').focus();
+          document.getElementById('cashInput').select();
+        }, 10);
       }
-    };
+    });
   });
+}
 
-  hitungKembali();
-
-}  
-
-// PERBAIKAN: Hitung kembalian dengan auto-update
-// GANTI fungsi hitungKembali dengan ini:
+// Hitung kembalian
 function hitungKembali() {
   const cashInput = document.getElementById('cashInput');
   const bayar = parseNumberFromString(cashInput.value);
@@ -1285,24 +1294,38 @@ function hitungKembali() {
   
   document.getElementById('uangKembali').textContent = formatRupiah(kembali > 0 ? kembali : 0);
 }
+// GANTI di fungsi renderTransaksi - tambah auto-fill bayar:
+function renderTransaksi(){
+  const tbody = document.querySelector('#tblTransaksi tbody');
+  tbody.innerHTML = '';
+  let total = 0;
+  
+  transaksi.forEach((item, i) => {
+    total += item.subtotal;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${item.nama}</strong></td>
+      <td>Rp${formatRupiah(item.harga)}</td>
+      <td><input type="number" min="1" value="${item.jumlah}" data-index="${i}" class="jumlah-input"></td>
+      <td><strong>Rp${formatRupiah(item.subtotal)}</strong></td>
+      <td><button class="hapus-btn" data-index="${i}" title="Hapus item">❌</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
 
-// GANTI event listener cashInput dengan ini:
-document.getElementById('cashInput').addEventListener('input', function(e) {
-  // Biarkan user input bebas, jangan auto-format dulu
-  hitungKembali();
-});
-
-document.getElementById('cashInput').addEventListener('blur', function(e) {
-  // Format hanya ketika kehilangan fokus
-  let digits = (e.target.value + '').replace(/[^\d]/g, '');
-  if (digits === '') {
-    e.target.value = '';
+  document.getElementById('totalHarga').textContent = formatRupiah(total);
+  
+  // PERBAIKAN: Auto-fill bayar dengan total
+  const cashInput = document.getElementById('cashInput');
+  if (total > 0) {
+    cashInput.value = formatRupiah(total);
   } else {
-    e.target.value = formatRupiah(digits);
+    cashInput.value = '0';
   }
   hitungKembali();
-});
-document.getElementById('cashInput').addEventListener('focus', function(e) {
+
+  // ... event handlers tetap
+}document.getElementById('cashInput').addEventListener('focus', function(e) {
   e.target.select();
 });
 
@@ -1458,27 +1481,134 @@ function renderLaporan(data, summary) {
     `;
   }
 
-  function resetFilterLaporan() {
-    document.getElementById('startDate').value = '';
-    document.getElementById('endDate').value = '';
-    document.getElementById('filterKasir').value = '';
+// PERBAIKAN: Reset filter laporan
+
+// GANTI dengan:
+function resetFilterLaporan() {
+  document.getElementById('startDate').value = '';
+  document.getElementById('endDate').value = '';
+  document.getElementById('filterKasir').value = '';
+  
+  // Kosongkan data laporan
+  laporanData = [];
+  document.getElementById('laporanBody').innerHTML = '';
+  document.getElementById('laporanSummary').innerHTML = '';
+}
+// PERBAIKAN: Load laporan tanpa filter tanggal default
+async function loadLaporan() {
+  try {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        action: 'getLaporan',
+        startDate: startDate,
+        endDate: endDate,
+        idToko: kasirInfo.idToko
+      })
+    });
+    
+    const data = await res.json();
+    if (data && data.success) {
+      laporanData = data.data || [];
+      renderLaporan(laporanData, data.summary);
+    } else {
+      alert('Gagal memuat laporan: ' + (data.message || 'Unknown error'));
+    }
+  } catch (err) {
+    console.error('Error loadLaporan:', err);
+    alert('Gagal memuat laporan');
+  }
+}
+
+// HAPUS kode set default dates dari DOMContentLoaded
+// Jadi tidak otomatis set filter tanggal
+// Cari fungsi exportLaporanPDF() dan GANTI SEMUA dengan:
+function exportLaporanPDF() {
+  if (laporanData.length === 0) {
+    alert('Tidak ada data laporan untuk di-export');
+    return;
   }
 
-  function exportLaporanPDF() {
-    const printContent = document.getElementById('tblLaporan').outerHTML;
-    const originalContent = document.body.innerHTML;
-    
-    document.body.innerHTML = `
-      <h2>Laporan Transaksi - ${kasirInfo.namaToko}</h2>
-      <p>Tanggal: ${new Date().toLocaleDateString('id-ID')}</p>
-      ${printContent}
+  // Buat window baru untuk print
+  const printWindow = window.open('', '_blank');
+  const today = new Date().toLocaleDateString('id-ID');
+  
+  // Siapkan konten HTML
+  let tableRows = '';
+  laporanData.forEach(item => {
+    tableRows += `
+      <tr>
+        <td>${item.tanggal || ''}</td>
+        <td>${item.id_transaksi || ''}</td>
+        <td>${item.kasir || ''}</td>
+        <td>Rp${formatRupiah(item.total || 0)}</td>
+        <td>Rp${formatRupiah(item.bayar || 0)}</td>
+        <td>Rp${formatRupiah(item.kembali || 0)}</td>
+        <td>${item.status || ''}</td>
+      </tr>
     `;
-    
-    window.print();
-    document.body.innerHTML = originalContent;
-    window.location.reload();
-  }
+  });
 
+  const totalPendapatan = laporanData.reduce((sum, item) => sum + (item.total || 0), 0);
+  
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Laporan Transaksi</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
+        h2 { color: #333; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #000; padding: 6px; text-align: left; }
+        th { background-color: #f0f0f0; }
+        .summary { margin: 15px 0; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; }
+        @media print {
+          body { margin: 0; }
+        }
+      </style>
+    </head>
+    <body>
+      <h2>Laporan Transaksi - ${kasirInfo.namaToko || 'TOKO'}</h2>
+      <p><strong>Tanggal Cetak:</strong> ${today}</p>
+      <p><strong>Periode:</strong> ${document.getElementById('startDate').value || 'Semua'} s/d ${document.getElementById('endDate').value || 'Semua'}</p>
+      
+      <div class="summary">
+        <strong>Ringkasan:</strong><br>
+        Total Transaksi: ${laporanData.length}<br>
+        Total Pendapatan: Rp${formatRupiah(totalPendapatan)}
+      </div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>ID Transaksi</th>
+            <th>Kasir</th>
+            <th>Total</th>
+            <th>Bayar</th>
+            <th>Kembali</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `);
+  
+  printWindow.document.close();
+  
+  // Tunggu konten load lalu print
+  setTimeout(() => {
+    printWindow.print();
+  }, 500);
+}
   // ==================== SETTING FUNCTIONS ====================
   async function loadSetting() {
     try {
@@ -1732,6 +1862,43 @@ function renderLaporan(data, summary) {
     // Auto load setting on page load
     loadSetting();
   });
+// FIX ENTER KEY - Tambahkan di bagian paling akhir
+function fixEnterKey() {
+  // Delegate event listener ke document
+  document.addEventListener('keydown', function(e) {
+    // Cek jika target adalah input jumlah dan tombol Enter
+    if (e.target.classList.contains('jumlah-input') && e.key === 'Enter') {
+      e.preventDefault();
+      
+      // Beri timeout kecil untuk memastikan input sudah diproses
+      setTimeout(() => {
+        const cashInput = document.getElementById('cashInput');
+        if (cashInput) {
+          cashInput.focus();
+          cashInput.select();
+        }
+      }, 50);
+    }
+  });
+}
+
+// Panggil fungsi fix setelah DOM loaded
+document.addEventListener('DOMContentLoaded', function() {
+  fixEnterKey();
+});
+// Enter key untuk pindah ke cash input
+inp.addEventListener('keydown', function(e) {
+  console.log('Key pressed:', e.key); // Debug
+  if (e.key === 'Enter') {
+    console.log('Enter pressed on jumlah input'); // Debug
+    e.preventDefault();
+    setTimeout(() => {
+      console.log('Moving focus to cash input'); // Debug
+      document.getElementById('cashInput').focus();
+      document.getElementById('cashInput').select();
+    }, 10);
+  }
+});
 </script>
 
 </body>
