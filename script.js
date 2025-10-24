@@ -32,41 +32,50 @@ function formatDateForInput(date) {
   return date.toISOString().split('T')[0];
 }
 
-// 🔥 PERBAIKAN: Fungsi untuk menampilkan tab berdasarkan level akses
+// 🔥 PERBAIKAN: Fungsi untuk menampilkan tab berdasarkan level akses - SIMPLE VERSION
 function showTabsBasedOnLevel() {
-  if (!kasirInfo || !kasirInfo.levelAkses) return;
+  if (!kasirInfo || !kasirInfo.levelAkses) {
+    console.error('Kasir info atau level akses tidak ada');
+    return;
+  }
   
   const level = kasirInfo.levelAkses;
   console.log('Level Akses:', level);
   
-  // Sembunyikan semua tab management dulu
-  const tabManajemen = document.getElementById('tabManajemen');
-  const tabToko = document.getElementById('tabToko');
-  const tabUser = document.getElementById('tabUser');
-  const tabSetting = document.getElementById('tabSetting');
+  // Default: sembunyikan semua tab management
+  const managementTabs = ['tabManajemen', 'tabToko', 'tabUser', 'tabSetting'];
   
-  if (tabManajemen) tabManajemen.style.display = 'none';
-  if (tabToko) tabToko.style.display = 'none';
-  if (tabUser) tabUser.style.display = 'none';
-  if (tabSetting) tabSetting.style.display = 'none';
+  managementTabs.forEach(tabId => {
+    const tab = document.getElementById(tabId);
+    if (tab) {
+      tab.style.display = 'none';
+    }
+  });
   
-  // Tampilkan tab berdasarkan level
+  // Tampilkan berdasarkan level
   if (level === 'OWNER') {
-    if (tabManajemen) tabManajemen.style.display = 'block';
-    if (tabToko) tabToko.style.display = 'block';
-    if (tabUser) tabUser.style.display = 'block';
-    if (tabSetting) tabSetting.style.display = 'block';
- } else if (level === 'ADMIN') {
-    tabManajemen.style.display = 'block';
-    tabUser.style.display = 'block';
-    console.log('ADMIN: Management & User tab ditampilkan');
-  } else {
-    // KASIR atau level lainnya - hanya kasir dan laporan
-    console.log('KASIR: Hanya tab Kasir & Laporan');
+    managementTabs.forEach(tabId => {
+      const tab = document.getElementById(tabId);
+      if (tab) tab.style.display = 'block';
+    });
+  } else if (level === 'ADMIN') {
+    const adminTabs = ['tabManajemen', 'tabUser'];
+    adminTabs.forEach(tabId => {
+      const tab = document.getElementById(tabId);
+      if (tab) tab.style.display = 'block';
+    });
   }
+  
+  console.log('Tab visibility updated');
+}
+function showTabs(tabIds) {
+  tabIds.forEach(tabId => {
+    const tab = document.getElementById(tabId);
+    if (tab) tab.style.display = 'block';
+  });
 }
 
-// Navigation between tabs
+// Setup tab navigation - SIMPLE VERSION
 function setupTabNavigation() {
   const tabs = document.querySelectorAll('.nav-tab');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -74,6 +83,7 @@ function setupTabNavigation() {
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       const targetTab = tab.dataset.tab;
+      console.log('Switching to tab:', targetTab);
       
       // Update active tab
       tabs.forEach(t => t.classList.remove('active'));
@@ -94,18 +104,21 @@ function setupTabNavigation() {
         loadMenuManagement();
       } else if (targetTab === 'user') {
         loadUserManagement();
+      } else if (targetTab === 'toko') {
+        loadUserManagement();
       } else if (targetTab === 'setting') {
         loadSetting();
       }
     });
   });
 }
-
 // ==================== USER MANAGEMENT FUNCTIONS ====================
 
-// Load data untuk management user
+// Load data untuk management user - DIPERBAIKI dengan cache
 async function loadUserManagement() {
   try {
+    console.log('Loading user management data...');
+    
     const res = await fetch(SCRIPT_URL, {
       method: 'POST',
       body: JSON.stringify({ 
@@ -124,13 +137,13 @@ async function loadUserManagement() {
       renderTokoManagementList();
       populateTokoDropdowns();
       
-      // PERBAIKAN: Pastikan tab tetap tampil sesuai level
-      showTabsBasedOnLevel();
+      console.log('User management loaded:', userManagementData.length, 'users', tokoManagementData.length, 'toko');
     } else {
       userManagementData = [];
       tokoManagementData = [];
       renderUserManagementList();
       renderTokoManagementList();
+      console.error('Failed to load user management:', data.message);
     }
   } catch (err) {
     console.error('Error loadUserManagement:', err);
@@ -144,6 +157,8 @@ async function loadUserManagement() {
 // Render daftar user
 function renderUserManagementList(filteredData = userManagementData) {
   const tbody = document.getElementById('daftarUserBody');
+  if (!tbody) return;
+  
   tbody.innerHTML = '';
   
   if (!filteredData || filteredData.length === 0) {
@@ -210,6 +225,8 @@ function renderUserManagementList(filteredData = userManagementData) {
 // Render daftar toko
 function renderTokoManagementList(filteredData = tokoManagementData) {
   const tbody = document.getElementById('daftarTokoBody');
+  if (!tbody) return;
+  
   tbody.innerHTML = '';
   
   if (!filteredData || filteredData.length === 0) {
@@ -399,9 +416,9 @@ function clearTokoForm() {
   document.getElementById('inputStatusToko').value = 'Aktif';
 }
 
-// Delete user
+// Delete user - DIPERBAIKI: True delete dengan konfirmasi
 async function deleteUser(username) {
-  if (!confirm(`Apakah Anda yakin ingin menghapus user ${username}?`)) {
+  if (!confirm(`Apakah Anda yakin ingin MENGHAPUS PERMANEN user ${username}? Data yang dihapus tidak dapat dikembalikan!`)) {
     return;
   }
   
@@ -412,13 +429,14 @@ async function deleteUser(username) {
         action: 'deleteUser',
         username: username,
         idToko: kasirInfo.idToko,
-        levelAkses: kasirInfo.levelAkses
+        levelAkses: kasirInfo.levelAkses,
+        permanent: true // 🔥 PERBAIKAN: Flag untuk hapus permanen
       })
     });
     
     const data = await res.json();
     if (data && data.success) {
-      alert('User berhasil dihapus');
+      alert('User berhasil dihapus permanen');
       loadUserManagement();
     } else {
       alert('Gagal menghapus user: ' + (data.message || 'Unknown error'));
@@ -428,9 +446,9 @@ async function deleteUser(username) {
   }
 }
 
-// Delete toko
+// Delete toko - DIPERBAIKI: True delete dengan konfirmasi
 async function deleteToko(tokoId) {
-  if (!confirm(`Apakah Anda yakin ingin menghapus toko ${tokoId}?`)) {
+  if (!confirm(`Apakah Anda yakin ingin MENGHAPUS PERMANEN toko ${tokoId}? Data yang dihapus tidak dapat dikembalikan!`)) {
     return;
   }
   
@@ -440,13 +458,14 @@ async function deleteToko(tokoId) {
       body: JSON.stringify({
         action: 'deleteToko',
         idToko: tokoId,
-        levelAkses: kasirInfo.levelAkses
+        levelAkses: kasirInfo.levelAkses,
+        permanent: true // 🔥 PERBAIKAN: Flag untuk hapus permanen
       })
     });
     
     const data = await res.json();
     if (data && data.success) {
-      alert('Toko berhasil dihapus');
+      alert('Toko berhasil dihapus permanen');
       loadUserManagement();
     } else {
       alert('Gagal menghapus toko: ' + (data.message || 'Unknown error'));
@@ -599,9 +618,6 @@ async function saveToko() {
     alert('Gagal menyimpan toko: ' + err.message);
   }
 }
-
-
-
 // Search user
 function setupUserManagementSearch() {
   const searchInput = document.getElementById('searchUserManagement');
@@ -617,7 +633,7 @@ function setupUserManagementSearch() {
       const filtered = userManagementData.filter(user => 
         user.username.toLowerCase().includes(searchTerm) ||
         user.nama_kasir.toLowerCase().includes(searchTerm) ||
-        user.nama_toko.toLowerCase().includes(searchTerm)
+        (user.nama_toko && user.nama_toko.toLowerCase().includes(searchTerm))
       );
       
       renderUserManagementList(filtered);
@@ -627,9 +643,11 @@ function setupUserManagementSearch() {
 
 // ==================== MENU MANAGEMENT FUNCTIONS ====================
 
-// Load data untuk management menu
+// Load data untuk management menu - DIPERBAIKI
 async function loadMenuManagement() {
   try {
+    console.log('Loading menu management data...');
+    
     const res = await fetch(SCRIPT_URL, {
       method: 'POST',
       body: JSON.stringify({ 
@@ -643,9 +661,11 @@ async function loadMenuManagement() {
     if (data && data.success) {
       menuManagementData = data.data || [];
       renderMenuManagementList();
+      console.log('Menu management loaded:', menuManagementData.length, 'items');
     } else {
       menuManagementData = [];
       renderMenuManagementList();
+      console.error('Failed to load menu management:', data.message);
     }
   } catch (err) {
     console.error('Error loadMenuManagement:', err);
@@ -654,9 +674,14 @@ async function loadMenuManagement() {
   }
 }
 
-// Render daftar menu di management
+// Render daftar menu di management - DIPERBAIKI
 function renderMenuManagementList(filteredData = menuManagementData) {
   const tbody = document.getElementById('daftarMenuBody');
+  if (!tbody) {
+    console.error('daftarMenuBody element not found');
+    return;
+  }
+  
   tbody.innerHTML = '';
   
   if (!filteredData || filteredData.length === 0) {
@@ -670,7 +695,21 @@ function renderMenuManagementList(filteredData = menuManagementData) {
     return;
   }
   
-  filteredData.forEach(menu => {
+  // 🔥 PERBAIKAN: Filter hanya data dengan status Aktif
+  const activeData = filteredData.filter(menu => menu.status === 'Aktif');
+  
+  if (activeData.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">
+          Tidak ada menu aktif
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
+  activeData.forEach(menu => {
     const tr = document.createElement('tr');
     const stokClass = menu.stok <= 0 ? 'stok-danger' : (menu.stok < 10 ? 'stok-warning' : '');
     
@@ -709,12 +748,14 @@ function renderMenuManagementList(filteredData = menuManagementData) {
 function canEditMenu(menu) {
   if (kasirInfo.levelAkses === 'OWNER') return true;
   if (kasirInfo.levelAkses === 'ADMIN' && menu.id_toko === kasirInfo.idToko) return true;
+  if (kasirInfo.levelAkses === 'ADMIN' && menu.id_toko === 'ALL') return true;
   return false;
 }
 
 function canDeleteMenu(menu) {
   if (kasirInfo.levelAkses === 'OWNER') return true;
   if (kasirInfo.levelAkses === 'ADMIN' && menu.id_toko === kasirInfo.idToko) return true;
+  if (kasirInfo.levelAkses === 'ADMIN' && menu.id_toko === 'ALL') return true;
   return false;
 }
 
@@ -722,14 +763,17 @@ function canDeleteMenu(menu) {
 function isMenuNameDuplicate(namaMenu, excludeId = null) {
   return menuManagementData.some(menu => 
     menu.nama_menu.toLowerCase() === namaMenu.toLowerCase() && 
-    menu.id_menu !== excludeId
+    menu.id_menu !== excludeId &&
+    menu.status === 'Aktif' // 🔥 PERBAIKAN: Hanya cek menu aktif
   );
 }
-
-// Edit menu
+// Edit menu - DIPERBAIKI LAGI
 function editMenu(menuId) {
-  const menu = menuManagementData.find(m => m.id_menu === menuId);
-  if (!menu) return;
+  const menu = menuManagementData.find(m => m.id_menu === menuId && m.status === 'Aktif');
+  if (!menu) {
+    alert('Menu tidak ditemukan atau sudah dihapus');
+    return;
+  }
   
   editingMenuId = menuId;
   
@@ -738,17 +782,31 @@ function editMenu(menuId) {
   document.getElementById('inputKategori').value = menu.kategori;
   document.getElementById('inputHarga').value = menu.harga;
   document.getElementById('inputStok').value = menu.stok || 0;
-  document.getElementById('inputToko').value = menu.id_toko;
+  
+  // 🔥 PERBAIKAN: Set toko yang benar dengan data yang ada
+  const tokoSelect = document.getElementById('inputToko');
+  if (tokoSelect) {
+    // Jika menu dari toko ALL atau toko current
+    if (menu.id_toko === 'ALL') {
+      tokoSelect.value = 'ALL';
+    } else {
+      tokoSelect.value = 'current';
+    }
+    
+    // 🔥 PERBAIKAN: Tampilkan info toko saat edit
+    const tokoInfo = menu.id_toko === 'ALL' ? 'Semua Toko' : (kasirInfo.namaToko || menu.id_toko);
+    document.getElementById('menuIdDisplay').textContent = `Editing: ${menuId} (Toko: ${tokoInfo})`;
+  }
   
   // Update UI untuk mode edit
   document.getElementById('btnSimpanMenu').textContent = '💾 Update Menu';
   document.getElementById('btnBatalEdit').style.display = 'inline-block';
-  document.getElementById('menuIdDisplay').textContent = `Editing: ${menuId}`;
   
   // Scroll ke form
   document.querySelector('.form-menu').scrollIntoView({ behavior: 'smooth' });
+  
+  console.log('Editing menu:', menu);
 }
-
 // Batal edit menu
 function cancelEdit() {
   editingMenuId = null;
@@ -771,9 +829,9 @@ function clearMenuForm() {
   if (errorMsg) errorMsg.remove();
 }
 
-// Delete menu
+// Delete menu - DIPERBAIKI: True delete
 async function deleteMenu(menuId) {
-  if (!confirm(`Apakah Anda yakin ingin menghapus menu ${menuId}?`)) {
+  if (!confirm(`Apakah Anda yakin ingin MENGHAPUS PERMANEN menu ${menuId}? Data yang dihapus tidak dapat dikembalikan!`)) {
     return;
   }
   
@@ -784,15 +842,16 @@ async function deleteMenu(menuId) {
         action: 'deleteMenu',
         idMenu: menuId,
         idToko: kasirInfo.idToko,
-        levelAkses: kasirInfo.levelAkses
+        levelAkses: kasirInfo.levelAkses,
+        permanent: true // 🔥 PERBAIKAN: Flag untuk hapus permanen
       })
     });
     
     const data = await res.json();
     if (data && data.success) {
-      alert('Menu berhasil dihapus');
+      alert('Menu berhasil dihapus permanen');
       loadMenuManagement();
-      loadMenu();
+      loadMenu(); // Refresh menu transaksi
     } else {
       alert('Gagal menghapus menu: ' + (data.message || 'Unknown error'));
     }
@@ -868,7 +927,7 @@ async function saveMenu() {
       clearMenuForm();
       cancelEdit();
       loadMenuManagement();
-      loadMenu();
+      loadMenu(); // Refresh menu transaksi
     } else {
       alert('Gagal menyimpan menu: ' + (data.message || 'Unknown error'));
     }
@@ -880,31 +939,35 @@ async function saveMenu() {
 // Search menu di management
 function setupMenuManagementSearch() {
   const searchInput = document.getElementById('searchMenuManagement');
-  searchInput.addEventListener('input', (e) => {
-    const searchTerm = e.target.value.toLowerCase().trim();
-    
-    if (!searchTerm) {
-      renderMenuManagementList(menuManagementData);
-      return;
-    }
-    
-    const filtered = menuManagementData.filter(menu => 
-      menu.nama_menu.toLowerCase().includes(searchTerm) ||
-      menu.kategori.toLowerCase().includes(searchTerm) ||
-      menu.id_menu.toLowerCase().includes(searchTerm)
-    );
-    
-    renderMenuManagementList(filtered);
-  });
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase().trim();
+      
+      if (!searchTerm) {
+        renderMenuManagementList(menuManagementData);
+        return;
+      }
+      
+      const filtered = menuManagementData.filter(menu => 
+        menu.nama_menu.toLowerCase().includes(searchTerm) ||
+        menu.kategori.toLowerCase().includes(searchTerm) ||
+        menu.id_menu.toLowerCase().includes(searchTerm)
+      );
+      
+      renderMenuManagementList(filtered);
+    });
+  }
 }
-
 // ==================== TRANSAKSI FUNCTIONS (DIPERBAIKI) ====================
 
-// PERBAIKAN: Load menu dengan data stok untuk transaksi
+// PERBAIKAN: Load menu dengan data stok untuk transaksi - DIPERBAIKI
 async function loadMenu(){
   const spinner = document.getElementById('menuLoading');
   if (spinner) spinner.style.display = 'flex';
+  
   try {
+    console.log('Loading menu for transactions...');
+    
     const res = await fetch(SCRIPT_URL, {
       method: 'POST',
       body: JSON.stringify({ 
@@ -913,10 +976,14 @@ async function loadMenu(){
         levelAkses: kasirInfo.levelAkses
       })
     });
+    
     const data = await res.json();
     
     if (data && data.success && Array.isArray(data.data)) {
-      menuData = data.data.map((m, index) => {
+      // 🔥 PERBAIKAN: Filter hanya menu aktif
+      const activeMenu = data.data.filter(menu => menu.status === 'Aktif');
+      
+      menuData = activeMenu.map((m, index) => {
         return {
           id: m.id_menu,
           nama: m.nama_menu,
@@ -929,12 +996,16 @@ async function loadMenu(){
       filteredMenu = [...menuData];
       currentPage = 1;
       renderMenuList();
+      
+      console.log('Menu loaded:', menuData.length, 'active items');
     } else {
       menuData = [];
       filteredMenu = [];
       renderMenuList([]);
+      console.error('Failed to load menu:', data?.message);
     }
   } catch(err) {
+    console.error('Error loading menu:', err);
     menuData = [];
     filteredMenu = [];
     renderMenuList([]);
@@ -946,6 +1017,8 @@ async function loadMenu(){
 // PERBAIKAN: Render menu dengan tampilan stok
 function renderMenuList(items = filteredMenu){
   const list = document.getElementById('menuList');
+  if (!list) return;
+  
   list.innerHTML = '';
   
   if (!items || items.length === 0) {
@@ -1012,9 +1085,9 @@ function updatePaginationInfo(totalItems, totalPages = Math.ceil(totalItems / IT
   const prevBtn = document.getElementById('prevPage');
   const nextBtn = document.getElementById('nextPage');
   
-  pageInfo.textContent = `Hal ${currentPage}/${totalPages}`;
-  prevBtn.disabled = currentPage === 1;
-  nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+  if (pageInfo) pageInfo.textContent = `Hal ${currentPage}/${totalPages}`;
+  if (prevBtn) prevBtn.disabled = currentPage === 1;
+  if (nextBtn) nextBtn.disabled = currentPage === totalPages || totalPages === 0;
 }
 
 function goToPage(page) {
@@ -1091,6 +1164,8 @@ function tambahMenu(menu){
 // PERBAIKAN: Render transaksi dengan info stok
 function renderTransaksi(){
   const tbody = document.querySelector('#tblTransaksi tbody');
+  if (!tbody) return;
+  
   tbody.innerHTML = '';
   let total = 0;
   
@@ -1113,13 +1188,14 @@ function renderTransaksi(){
     tbody.appendChild(tr);
   });
 
-  document.getElementById('totalHarga').textContent = formatRupiah(total);
+  const totalHargaEl = document.getElementById('totalHarga');
+  if (totalHargaEl) totalHargaEl.textContent = formatRupiah(total);
   
   // Auto-fill bayar dengan total
   const cashInput = document.getElementById('cashInput');
-  if (total > 0) {
+  if (cashInput && total > 0) {
     cashInput.value = formatRupiah(total);
-  } else {
+  } else if (cashInput) {
     cashInput.value = '0';
   }
   hitungKembali();
@@ -1128,11 +1204,15 @@ function renderTransaksi(){
 // Hitung kembalian
 function hitungKembali() {
   const cashInput = document.getElementById('cashInput');
+  const uangKembaliEl = document.getElementById('uangKembali');
+  
+  if (!cashInput || !uangKembaliEl) return;
+  
   const bayar = parseNumberFromString(cashInput.value);
   const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
   const kembali = bayar - total;
   
-  document.getElementById('uangKembali').textContent = formatRupiah(kembali > 0 ? kembali : 0);
+  uangKembaliEl.textContent = formatRupiah(kembali > 0 ? kembali : 0);
 }
 
 // PERBAIKAN: Setup event delegation dengan validasi stok
@@ -1263,6 +1343,8 @@ async function loadLaporan() {
 // Render laporan
 function renderLaporan(data, summary) {
   const tbody = document.getElementById('laporanBody');
+  if (!tbody) return;
+  
   tbody.innerHTML = '';
   
   if (!data || data.length === 0) {
@@ -1297,6 +1379,8 @@ function renderLaporan(data, summary) {
 
 function renderSummary(summary) {
   const summaryContainer = document.getElementById('laporanSummary');
+  if (!summaryContainer) return;
+  
   if (!summary) {
     summaryContainer.innerHTML = '';
     return;
@@ -1330,8 +1414,11 @@ function resetFilterLaporan() {
   
   // Kosongkan data laporan
   laporanData = [];
-  document.getElementById('laporanBody').innerHTML = '';
-  document.getElementById('laporanSummary').innerHTML = '';
+  const laporanBody = document.getElementById('laporanBody');
+  const laporanSummary = document.getElementById('laporanSummary');
+  
+  if (laporanBody) laporanBody.innerHTML = '';
+  if (laporanSummary) laporanSummary.innerHTML = '';
 }
 
 // Export laporan PDF
@@ -1631,38 +1718,56 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('startDate').value = formatDateForInput(oneWeekAgo);
   document.getElementById('endDate').value = formatDateForInput(today);
 
-  // Login handler - PERBAIKAN: Include level akses
-  document.getElementById('loginBtn').addEventListener('click', async () => {
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value.trim();
-    document.getElementById('loginMessage').innerText = 'Memeriksa...';
+  // Login handler - DIPERBAIKI dengan error handling
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value.trim();
+  const loginMessage = document.getElementById('loginMessage');
+  
+  if (!username || !password) {
+    loginMessage.innerText = 'Username dan password harus diisi';
+    return;
+  }
+  
+  loginMessage.innerText = 'Memeriksa...';
+  
+  try {
+    const res = await fetch(SCRIPT_URL, { 
+      method: 'POST', 
+      body: JSON.stringify({ action: 'login', username, password }) 
+    });
     
-    try {
-      const res = await fetch(SCRIPT_URL, { 
-        method: 'POST', 
-        body: JSON.stringify({ action: 'login', username, password }) 
-      });
-      const data = await res.json();
-      
-      if (data && data.success) {
-        kasirInfo = data;
-        console.log('Login Success - User Info:', kasirInfo); // Debug
-        document.getElementById('namaToko').innerText = kasirInfo.namaToko || 'Aplikasi Kasir';
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.getElementById('kasirPage').classList.add('active');
-        
-        // PERBAIKAN: Tampilkan tab berdasarkan level akses
-        showTabsBasedOnLevel();
-        
-        await loadMenu();
-        document.getElementById('loginMessage').innerText = '';
-      } else {
-        document.getElementById('loginMessage').innerText = 'Login gagal';
-      }
-    } catch(err) {
-      document.getElementById('loginMessage').innerText = 'Gagal terhubung ke server';
+    if (!res.ok) {
+      throw new Error('Network response was not ok');
     }
-  });
+    
+    const data = await res.json();
+    console.log('Login response:', data);
+    
+    if (data && data.success) {
+      kasirInfo = data;
+      console.log('Login Success:', kasirInfo);
+      
+      // Update UI
+      document.getElementById('namaToko').innerText = kasirInfo.namaToko || 'Aplikasi Kasir';
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById('kasirPage').classList.add('active');
+      
+      // Tampilkan tab berdasarkan level
+      showTabsBasedOnLevel();
+      
+      // Load menu
+      await loadMenu();
+      
+      loginMessage.innerText = '';
+    } else {
+      loginMessage.innerText = data.message || 'Login gagal';
+    }
+  } catch(err) {
+    console.error('Login error:', err);
+    loginMessage.innerText = 'Gagal terhubung ke server: ' + err.message;
+  }
+});
 
   document.getElementById('logoutBtn').addEventListener('click', () => {
     kasirInfo = {}; 
@@ -1738,14 +1843,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnBatalEditToko').addEventListener('click', cancelEditToko);
 
   // 🔥 PERBAIKAN: Auto-generate ID toko saat form dibuka
-document.getElementById('inputNamaToko').addEventListener('focus', function() {
-  const idTokoInput = document.getElementById('inputIdToko');
-  if (!idTokoInput.value || idTokoInput.value === '') {
-    // Generate temporary ID - akan diganti oleh backend saat simpan
-    idTokoInput.value = 'TEMP-' + Date.now();
-  }
-});
-
+  document.getElementById('inputNamaToko').addEventListener('focus', function() {
+    const idTokoInput = document.getElementById('inputIdToko');
+    if (!idTokoInput.value || idTokoInput.value === '') {
+      // Generate temporary ID - akan diganti oleh backend saat simpan
+      idTokoInput.value = 'TEMP-' + Date.now();
+    }
+  });
 
   // PERBAIKAN: Validasi duplikat nama menu saat input
   document.getElementById('inputNamaMenu').addEventListener('input', function(e) {
@@ -1801,5 +1905,4 @@ document.getElementById('inputNamaToko').addEventListener('focus', function() {
 
   // Auto load setting on page load
   loadSetting();
-
 });
