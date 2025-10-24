@@ -140,6 +140,14 @@ function renderMenuManagementList(filteredData = menuManagementData) {
   });
 }
 
+// PERBAIKAN: Cek duplikat nama menu
+function isMenuNameDuplicate(namaMenu, excludeId = null) {
+  return menuManagementData.some(menu => 
+    menu.nama_menu.toLowerCase() === namaMenu.toLowerCase() && 
+    menu.id_menu !== excludeId
+  );
+}
+
 // Edit menu
 function editMenu(menuId) {
   const menu = menuManagementData.find(m => m.id_menu === menuId);
@@ -179,6 +187,10 @@ function clearMenuForm() {
   document.getElementById('inputHarga').value = '';
   document.getElementById('inputStok').value = '0';
   document.getElementById('inputToko').value = 'current';
+  
+  // Hapus pesan error duplikat
+  const errorMsg = document.getElementById('duplicateError');
+  if (errorMsg) errorMsg.remove();
 }
 
 // Delete menu
@@ -201,6 +213,7 @@ async function deleteMenu(menuId) {
     if (data && data.success) {
       alert('Menu berhasil dihapus');
       loadMenuManagement(); // Reload data
+      loadMenu(); // Reload menu untuk transaksi
     } else {
       alert('Gagal menghapus menu: ' + (data.message || 'Unknown error'));
     }
@@ -209,7 +222,7 @@ async function deleteMenu(menuId) {
   }
 }
 
-// Simpan menu (create atau update)
+// PERBAIKAN: Simpan menu dengan validasi duplikat nama
 async function saveMenu() {
   const namaMenu = document.getElementById('inputNamaMenu').value.trim();
   const kategori = document.getElementById('inputKategori').value;
@@ -229,6 +242,23 @@ async function saveMenu() {
   }
   if (harga <= 0) {
     alert('Harga harus lebih dari 0');
+    return;
+  }
+  
+  // PERBAIKAN: Cek duplikat nama menu
+  if (isMenuNameDuplicate(namaMenu, editingMenuId)) {
+    // Tampilkan pesan error
+    const existingError = document.getElementById('duplicateError');
+    if (existingError) existingError.remove();
+    
+    const errorMsg = document.createElement('div');
+    errorMsg.id = 'duplicateError';
+    errorMsg.style.color = 'var(--danger)';
+    errorMsg.style.fontSize = '0.8rem';
+    errorMsg.style.marginTop = '5px';
+    errorMsg.innerHTML = '⚠️ Nama menu sudah ada! Gunakan nama yang berbeda.';
+    
+    document.getElementById('inputNamaMenu').parentNode.appendChild(errorMsg);
     return;
   }
   
@@ -289,24 +319,48 @@ function setupMenuManagementSearch() {
   });
 }
 
-// Fungsi untuk cek duplikasi menu
-function cekMenuDuplikat(namaMenu, idToko, excludeMenuId = null) {
-  const namaMenuLower = namaMenu.toLowerCase().trim();
-  
-  return menuManagementData.some(menu => {
-    // Skip menu yang sedang diedit
-    if (excludeMenuId && menu.id_menu === excludeMenuId) return false;
+// ==================== TRANSAKSI FUNCTIONS (DIPERBAIKI) ====================
+
+// PERBAIKAN: Load menu dengan data stok untuk transaksi
+async function loadMenu(){
+  const spinner = document.getElementById('menuLoading');
+  if (spinner) spinner.style.display = 'flex';
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'getMenuManagement', idToko: kasirInfo.idToko })
+    });
+    const data = await res.json();
     
-    const existingNamaLower = menu.nama_menu.toLowerCase().trim();
-    const isSameToko = menu.id_toko === idToko || menu.id_toko === "ALL";
-    
-    return existingNamaLower === namaMenuLower && isSameToko;
-  });
+    if (data && data.success && Array.isArray(data.data)) {
+      menuData = data.data.map((m, index) => {
+        return {
+          id: m.id_menu,
+          nama: m.nama_menu,
+          harga: m.harga,
+          kategori: m.kategori,
+          stok: m.stok || 0
+        };
+      });
+      
+      filteredMenu = [...menuData];
+      currentPage = 1;
+      renderMenuList();
+    } else {
+      menuData = [];
+      filteredMenu = [];
+      renderMenuList([]);
+    }
+  } catch(err) {
+    menuData = [];
+    filteredMenu = [];
+    renderMenuList([]);
+  } finally {
+    if (spinner) spinner.style.display = 'none';
+  }
 }
 
-// ==================== TRANSAKSI FUNCTIONS (YANG SUDAH DIPERBAIKI) ====================
-
-// Render menu dengan pagination
+// PERBAIKAN: Render menu dengan tampilan stok
 function renderMenuList(items = filteredMenu){
   const list = document.getElementById('menuList');
   list.innerHTML = '';
@@ -324,18 +378,46 @@ function renderMenuList(items = filteredMenu){
 
   itemsToShow.forEach(m => {
     const btn = document.createElement('button');
-    const hargaNum = (typeof m.harga === 'string') ? parseNumberFromString(m.harga) : (m.harga || 0);
+    const hargaNum = m.harga;
+    const stok = m.stok || 0;
     
-    btn.className = 'menu-item';
+    // Tentukan style berdasarkan stok
+    let stokClass = '';
+    let stokText = '';
+    if (stok <= 0) {
+      stokClass = 'stok-habis';
+      stokText = '❌ Habis';
+    } else if (stok < 5) {
+      stokClass = 'stok-sedikit';
+      stokText = `⚠️ ${stok}`;
+    } else {
+      stokText = `✅ ${stok}`;
+    }
+    
+    btn.className = `menu-item ${stokClass}`;
     btn.innerHTML = `
       <div class="nama">${m.nama}</div>
       <div class="harga">Rp${formatRupiah(hargaNum)}</div>
+      <div class="stok ${stokClass}">${stokText}</div>
     `;
-    btn.onclick = () => tambahMenu({ 
-      id: m.id,
-      nama: m.nama, 
-      harga: hargaNum 
-    });
+    
+    btn.setAttribute('data-id', m.id);
+    btn.setAttribute('data-stok', stok);
+    
+    // Nonaktifkan tombol jika stok habis
+    if (stok <= 0) {
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.style.cursor = 'not-allowed';
+    } else {
+      btn.onclick = () => tambahMenu({ 
+        id: m.id,
+        nama: m.nama, 
+        harga: hargaNum,
+        stok: stok
+      });
+    }
+    
     list.appendChild(btn);
   });
 
@@ -357,47 +439,6 @@ function goToPage(page) {
   renderMenuList();
 }
 
-// Load menu dari server
-async function loadMenu(){
-  const spinner = document.getElementById('menuLoading');
-  if (spinner) spinner.style.display = 'flex';
-  try {
-    const res = await fetch(SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'getMenu', idToko: kasirInfo.idToko })
-    });
-    const data = await res.json();
-    
-    if (data && data.success && Array.isArray(data.data)) {
-      menuData = data.data.map((m, index) => {
-        const idFromServer = m.id || m.ID || m.Id || m.kode || m.Kode || m.kode_menu || m.id_menu || `M${String(index + 1).padStart(3, '0')}`;
-        const hargaFromServer = typeof m.harga === 'string' ? parseNumberFromString(m.harga) : (m.harga || 0);
-        
-        return {
-          id: idFromServer,
-          nama: m.nama || m.Nama || 'Menu tanpa nama',
-          kategori: (m.kategori || m.Kategori || '').toString(),
-          harga: hargaFromServer
-        };
-      });
-      
-      filteredMenu = [...menuData];
-      currentPage = 1;
-      renderMenuList();
-    } else {
-      menuData = [];
-      filteredMenu = [];
-      renderMenuList([]);
-    }
-  } catch(err) {
-    menuData = [];
-    filteredMenu = [];
-    renderMenuList([]);
-  } finally {
-    if (spinner) spinner.style.display = 'none';
-  }
-}
-
 // Filter pencarian
 function filterMenuByText(text){
   if (!text) {
@@ -417,28 +458,42 @@ function filterMenuByText(text){
   renderMenuList();
 }
 
-// PERBAIKAN: Tambah menu dengan cek duplikat dan set focus
+// PERBAIKAN: Tambah menu dengan cek stok dan cegah duplikat
 function tambahMenu(menu){
+  // Cek stok tersedia
+  const stokTersedia = menu.stok || 0;
   const existingIndex = transaksi.findIndex(t => t.id === menu.id);
   
   if (existingIndex !== -1) {
-    // Jika menu sudah ada, tambah jumlahnya
-    transaksi[existingIndex].jumlah = (transaksi[existingIndex].jumlah || 0) + 1;
+    // Jika menu sudah ada, cek stok untuk penambahan
+    const jumlahSekarang = transaksi[existingIndex].jumlah;
+    if (jumlahSekarang + 1 > stokTersedia) {
+      alert(`❌ Stok tidak cukup! Stok ${menu.nama} hanya ${stokTersedia}`);
+      return;
+    }
+    
+    transaksi[existingIndex].jumlah += 1;
     transaksi[existingIndex].subtotal = transaksi[existingIndex].jumlah * transaksi[existingIndex].harga;
   } else {
     // Jika menu belum ada, tambah sebagai item baru
+    if (stokTersedia < 1) {
+      alert(`❌ Stok ${menu.nama} habis!`);
+      return;
+    }
+    
     transaksi.push({ 
       id: menu.id,
       nama: menu.nama, 
       harga: menu.harga,
       jumlah: 1, 
-      subtotal: menu.harga 
+      subtotal: menu.harga,
+      stok: stokTersedia
     });
   }
   
   renderTransaksi();
   
-  // PERBAIKAN: Set focus ke input jumlah item yang baru/tambah
+  // Set focus ke input jumlah item yang baru/tambah
   setTimeout(() => {
     const inputs = document.querySelectorAll(".jumlah-input");
     const targetIndex = existingIndex !== -1 ? existingIndex : transaksi.length - 1;
@@ -449,7 +504,8 @@ function tambahMenu(menu){
     }
   }, 100);
 }
-// PERBAIKAN UTAMA: Render transaksi dengan event delegation - FIXED
+
+// PERBAIKAN: Render transaksi dengan info stok
 function renderTransaksi(){
   const tbody = document.querySelector('#tblTransaksi tbody');
   tbody.innerHTML = '';
@@ -457,9 +513,15 @@ function renderTransaksi(){
   
   transaksi.forEach((item, i) => {
     total += item.subtotal;
+    const stokInfo = item.stok ? ` (Stok: ${item.stok})` : '';
+    const stokWarning = item.jumlah > item.stok ? ' ❌ Melebihi stok!' : '';
+    
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><strong>${item.nama}</strong></td>
+      <td>
+        <strong>${item.nama}</strong>${stokInfo}
+        ${stokWarning}
+      </td>
       <td>Rp${formatRupiah(item.harga)}</td>
       <td><input type="number" min="0" value="${item.jumlah}" data-index="${i}" class="jumlah-input"></td>
       <td><strong>Rp${formatRupiah(item.subtotal)}</strong></td>
@@ -479,6 +541,7 @@ function renderTransaksi(){
   }
   hitungKembali();
 }
+
 // Hitung kembalian
 function hitungKembali() {
   const cashInput = document.getElementById('cashInput');
@@ -489,7 +552,7 @@ function hitungKembali() {
   document.getElementById('uangKembali').textContent = formatRupiah(kembali > 0 ? kembali : 0);
 }
 
-// Setup event delegation untuk transaksi - PERBAIKAN PENTING
+// PERBAIKAN: Setup event delegation dengan validasi stok
 function setupTransactionEventDelegation() {
   const tbody = document.querySelector('#tblTransaksi tbody');
   
@@ -502,8 +565,16 @@ function setupTransactionEventDelegation() {
       if (isNaN(index) || index < 0 || index >= transaksi.length) return;
       
       const newJumlah = parseInt(e.target.value) || 0;
+      const item = transaksi[index];
       
-      // PERBAIKAN: Jika jumlah = 0, hapus item dari transaksi
+      // PERBAIKAN: Validasi stok
+      if (newJumlah > item.stok) {
+        alert(`❌ Jumlah melebihi stok! Stok ${item.nama} hanya ${item.stok}`);
+        e.target.value = item.stok;
+        return;
+      }
+      
+      // Jika jumlah = 0, hapus item dari transaksi
       if (newJumlah <= 0) {
         transaksi.splice(index, 1);
       } else {
@@ -536,20 +607,43 @@ function setupTransactionEventDelegation() {
   tbody.addEventListener('keydown', function(e) {
     if (e.target.classList.contains('jumlah-input') && e.key === 'Enter') {
       e.preventDefault();
+      
+      const index = parseInt(e.target.getAttribute('data-index'));
+      const newJumlah = parseInt(e.target.value) || 0;
+      const item = transaksi[index];
+      
+      // Validasi stok sebelum pindah
+      if (newJumlah > item.stok) {
+        alert(`❌ Jumlah melebihi stok! Stok ${item.nama} hanya ${item.stok}`);
+        e.target.value = item.stok;
+        return;
+      }
+      
+      // Update jumlah dulu
+      if (newJumlah <= 0) {
+        transaksi.splice(index, 1);
+      } else {
+        transaksi[index].jumlah = newJumlah;
+        transaksi[index].subtotal = transaksi[index].jumlah * transaksi[index].harga;
+      }
+      
+      renderTransaksi();
+      
+      // Set focus ke cash input setelah render
       setTimeout(() => {
         const cashInput = document.getElementById('cashInput');
         if (cashInput) {
           cashInput.focus();
           cashInput.select();
         }
-      }, 10);
+      }, 50);
     }
   });
 }
 
 // ==================== LAPORAN FUNCTIONS ====================
 
-// PERBAIKAN: Load laporan dengan filter tanggal
+// Load laporan dengan filter tanggal
 async function loadLaporan() {
   try {
     const startDate = document.getElementById('startDate').value;
@@ -865,7 +959,7 @@ function printStruk() {
   }, 500);
 }
 
-// Selesaikan transaksi
+// PERBAIKAN: Selesaikan transaksi dengan update stok
 async function selesaikanTransaksi() {
   if (!transaksi.length) {
     alert('Belum ada pesanan');
@@ -879,6 +973,14 @@ async function selesaikanTransaksi() {
   if (bayar < total) {
     alert('Jumlah bayar tunai kurang dari total!');
     return;
+  }
+  
+  // PERBAIKAN: Validasi stok sebelum transaksi
+  for (const item of transaksi) {
+    if (item.jumlah > item.stok) {
+      alert(`❌ Transaksi gagal! Jumlah ${item.nama} melebihi stok yang tersedia (${item.stok})`);
+      return;
+    }
   }
   
   const konfirmasi = confirm(`Total: Rp ${formatRupiah(total)}\nBayar: Rp ${formatRupiah(bayar)}\nKembali: Rp ${formatRupiah(bayar - total)}\n\nLanjutkan transaksi?`);
@@ -903,11 +1005,13 @@ async function selesaikanTransaksi() {
     if (data && data.success) {
       printStruk();
       
+      // PERBAIKAN: Reload menu untuk update stok
       setTimeout(() => {
         transaksi = [];
         renderTransaksi();
         cashEl.value = '0';
         document.getElementById('uangKembali').textContent = '0';
+        loadMenu(); // Reload menu untuk update stok di tampilan
         alert('Transaksi berhasil disimpan!');
       }, 1000);
       
@@ -926,7 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Setup tab navigation
   setupTabNavigation();
   
-  // Setup transaction event delegation - PERBAIKAN PENTING
+  // Setup transaction event delegation
   setupTransactionEventDelegation();
   
   // Setup menu management search
@@ -1030,6 +1134,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // Menu management handlers
   document.getElementById('btnSimpanMenu').addEventListener('click', saveMenu);
   document.getElementById('btnBatalEdit').addEventListener('click', cancelEdit);
+
+  // PERBAIKAN: Validasi duplikat nama menu saat input
+  document.getElementById('inputNamaMenu').addEventListener('input', function(e) {
+    const namaMenu = e.target.value.trim();
+    const errorMsg = document.getElementById('duplicateError');
+    
+    if (errorMsg) errorMsg.remove();
+    
+    if (namaMenu && isMenuNameDuplicate(namaMenu, editingMenuId)) {
+      const errorMsg = document.createElement('div');
+      errorMsg.id = 'duplicateError';
+      errorMsg.style.color = 'var(--danger)';
+      errorMsg.style.fontSize = '0.8rem';
+      errorMsg.style.marginTop = '5px';
+      errorMsg.innerHTML = '⚠️ Nama menu sudah ada! Gunakan nama yang berbeda.';
+      
+      this.parentNode.appendChild(errorMsg);
+    }
+  });
 
   // Laporan handlers
   document.getElementById('btnLoadLaporan').addEventListener('click', loadLaporan);
