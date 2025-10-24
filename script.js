@@ -12,6 +12,10 @@ let currentSettings = {};
 let laporanData = [];
 let menuManagementData = [];
 let editingMenuId = null;
+let userManagementData = [];
+let tokoManagementData = [];
+let editingUserId = null;
+let editingTokoId = null;
 
 // Helper functions
 function formatRupiah(angka){
@@ -26,6 +30,36 @@ function parseNumberFromString(s){
 
 function formatDateForInput(date) {
   return date.toISOString().split('T')[0];
+}
+
+// 🔥 PERBAIKAN: Fungsi untuk menampilkan tab berdasarkan level akses
+function showTabsBasedOnLevel() {
+  if (!kasirInfo || !kasirInfo.levelAkses) return;
+  
+  const level = kasirInfo.levelAkses;
+  console.log('Level Akses:', level);
+  
+  // Sembunyikan semua tab management dulu
+  const tabManajemen = document.getElementById('tabManajemen');
+  const tabToko = document.getElementById('tabToko');
+  const tabUser = document.getElementById('tabUser');
+  const tabSetting = document.getElementById('tabSetting');
+  
+  if (tabManajemen) tabManajemen.style.display = 'none';
+  if (tabToko) tabToko.style.display = 'none';
+  if (tabUser) tabUser.style.display = 'none';
+  if (tabSetting) tabSetting.style.display = 'none';
+  
+  // Tampilkan tab berdasarkan level
+  if (level === 'OWNER') {
+    if (tabManajemen) tabManajemen.style.display = 'block';
+    if (tabToko) tabToko.style.display = 'block';
+    if (tabUser) tabUser.style.display = 'block';
+    if (tabSetting) tabSetting.style.display = 'block';
+  } else if (level === 'ADMIN') {
+    if (tabManajemen) tabManajemen.style.display = 'block';
+    if (tabUser) tabUser.style.display = 'block';
+  }
 }
 
 // Navigation between tabs
@@ -54,11 +88,537 @@ function setupTabNavigation() {
         loadLaporan();
       } else if (targetTab === 'manajemen') {
         loadMenuManagement();
+      } else if (targetTab === 'user') {
+        loadUserManagement();
       } else if (targetTab === 'setting') {
         loadSetting();
       }
     });
   });
+}
+
+// ==================== USER MANAGEMENT FUNCTIONS ====================
+
+// Load data untuk management user
+async function loadUserManagement() {
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        action: 'getUserManagement',
+        idToko: kasirInfo.idToko,
+        levelAkses: kasirInfo.levelAkses,
+        username: kasirInfo.username
+      })
+    });
+    
+    const data = await res.json();
+    if (data && data.success) {
+      userManagementData = data.users || [];
+      tokoManagementData = data.toko || [];
+      renderUserManagementList();
+      renderTokoManagementList();
+      populateTokoDropdowns();
+      
+      // PERBAIKAN: Pastikan tab tetap tampil sesuai level
+      showTabsBasedOnLevel();
+    } else {
+      userManagementData = [];
+      tokoManagementData = [];
+      renderUserManagementList();
+      renderTokoManagementList();
+    }
+  } catch (err) {
+    console.error('Error loadUserManagement:', err);
+    userManagementData = [];
+    tokoManagementData = [];
+    renderUserManagementList();
+    renderTokoManagementList();
+  }
+}
+
+// Render daftar user
+function renderUserManagementList(filteredData = userManagementData) {
+  const tbody = document.getElementById('daftarUserBody');
+  tbody.innerHTML = '';
+  
+  if (!filteredData || filteredData.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">
+          Tidak ada data user
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
+  filteredData.forEach(user => {
+    const tr = document.createElement('tr');
+    
+    tr.innerHTML = `
+      <td>${user.username}</td>
+      <td><strong>${user.nama_kasir}</strong></td>
+      <td>${user.nama_toko || user.id_toko}</td>
+      <td>
+        <span class="role-badge role-${user.level_akses.toLowerCase()}">
+          ${user.level_akses}
+        </span>
+      </td>
+      <td>
+        <span class="status-badge status-${user.status.toLowerCase()}">
+          ${user.status}
+        </span>
+      </td>
+      <td>${user.terakhir_login || '-'}</td>
+      <td>
+        ${canEditUser(user) ? `<button class="btn-edit-user" data-username="${user.username}">✏️ Edit</button>` : ''}
+        ${canDeleteUser(user) ? `<button class="btn-delete-user" data-username="${user.username}">🗑️ Hapus</button>` : ''}
+        ${canResetPassword(user) ? `<button class="btn-reset-password" data-username="${user.username}">🔑 Reset</button>` : ''}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  
+  // Add event listeners
+  document.querySelectorAll('.btn-edit-user').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const username = e.target.getAttribute('data-username');
+      editUser(username);
+    });
+  });
+  
+  document.querySelectorAll('.btn-delete-user').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const username = e.target.getAttribute('data-username');
+      deleteUser(username);
+    });
+  });
+  
+  document.querySelectorAll('.btn-reset-password').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const username = e.target.getAttribute('data-username');
+      resetPasswordUser(username);
+    });
+  });
+}
+
+// Render daftar toko
+function renderTokoManagementList(filteredData = tokoManagementData) {
+  const tbody = document.getElementById('daftarTokoBody');
+  tbody.innerHTML = '';
+  
+  if (!filteredData || filteredData.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">
+          Tidak ada data toko
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
+  filteredData.forEach(toko => {
+    const tr = document.createElement('tr');
+    
+    tr.innerHTML = `
+      <td>${toko.id_toko}</td>
+      <td><strong>${toko.nama_toko}</strong></td>
+      <td>${toko.alamat || '-'}</td>
+      <td>${toko.telepon || '-'}</td>
+      <td>
+        <span class="status-badge status-${toko.status.toLowerCase()}">
+          ${toko.status}
+        </span>
+      </td>
+      <td>
+        ${canEditToko() ? `<button class="btn-edit-toko" data-id="${toko.id_toko}">✏️ Edit</button>` : ''}
+        ${canDeleteToko() ? `<button class="btn-delete-toko" data-id="${toko.id_toko}">🗑️ Hapus</button>` : ''}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  
+  // Add event listeners untuk toko
+  document.querySelectorAll('.btn-edit-toko').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tokoId = e.target.getAttribute('data-id');
+      editToko(tokoId);
+    });
+  });
+  
+  document.querySelectorAll('.btn-delete-toko').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tokoId = e.target.getAttribute('data-id');
+      deleteToko(tokoId);
+    });
+  });
+}
+
+// Populate dropdown toko
+function populateTokoDropdowns() {
+  const userTokoSelect = document.getElementById('inputTokoUser');
+  
+  if (userTokoSelect) {
+    userTokoSelect.innerHTML = '<option value="">Pilih Toko</option>';
+    tokoManagementData.forEach(toko => {
+      if (toko.status === 'Aktif') {
+        const option = document.createElement('option');
+        option.value = toko.id_toko;
+        option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
+        userTokoSelect.appendChild(option);
+      }
+    });
+    
+    // Tambah option ALL untuk Owner
+    if (kasirInfo.levelAkses === 'OWNER') {
+      const option = document.createElement('option');
+      option.value = 'ALL';
+      option.textContent = 'ALL - Semua Toko';
+      userTokoSelect.appendChild(option);
+    }
+  }
+}
+
+// Permission checks
+function canEditUser(user) {
+  if (kasirInfo.levelAkses === 'OWNER') return true;
+  if (kasirInfo.levelAkses === 'ADMIN' && user.id_toko === kasirInfo.idToko) return true;
+  return false;
+}
+
+function canDeleteUser(user) {
+  if (user.username === kasirInfo.username) return false; // Tidak bisa hapus diri sendiri
+  if (kasirInfo.levelAkses === 'OWNER') return true;
+  if (kasirInfo.levelAkses === 'ADMIN' && user.level_akses === 'KASIR' && user.id_toko === kasirInfo.idToko) return true;
+  return false;
+}
+
+function canResetPassword(user) {
+  if (kasirInfo.levelAkses === 'OWNER') return true;
+  if (kasirInfo.levelAkses === 'ADMIN' && user.id_toko === kasirInfo.idToko) return true;
+  if (user.username === kasirInfo.username) return true; // Bisa reset password sendiri
+  return false;
+}
+
+function canCreateUser() {
+  return kasirInfo.levelAkses === 'OWNER' || kasirInfo.levelAkses === 'ADMIN';
+}
+
+function canEditToko() {
+  return kasirInfo.levelAkses === 'OWNER';
+}
+
+function canDeleteToko() {
+  return kasirInfo.levelAkses === 'OWNER';
+}
+
+function canCreateToko() {
+  return kasirInfo.levelAkses === 'OWNER';
+}
+
+// Edit user
+function editUser(username) {
+  const user = userManagementData.find(u => u.username === username);
+  if (!user) return;
+  
+  editingUserId = username;
+  
+  document.getElementById('inputUsername').value = user.username;
+  document.getElementById('inputUsername').disabled = true;
+  document.getElementById('inputNamaUser').value = user.nama_kasir;
+  document.getElementById('inputTokoUser').value = user.id_toko;
+  document.getElementById('inputRoleUser').value = user.level_akses;
+  document.getElementById('inputStatusUser').value = user.status;
+  
+  document.getElementById('btnSimpanUser').textContent = '💾 Update User';
+  document.getElementById('btnBatalEditUser').style.display = 'inline-block';
+  
+  document.querySelector('.form-menu').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Edit toko
+function editToko(tokoId) {
+  const toko = tokoManagementData.find(t => t.id_toko === tokoId);
+  if (!toko) return;
+  
+  editingTokoId = tokoId;
+  
+  document.getElementById('inputIdToko').value = toko.id_toko;
+  document.getElementById('inputIdToko').disabled = true;
+  document.getElementById('inputNamaToko').value = toko.nama_toko;
+  document.getElementById('inputAlamatToko').value = toko.alamat || '';
+  document.getElementById('inputTeleponToko').value = toko.telepon || '';
+  document.getElementById('inputStatusToko').value = toko.status;
+  
+  document.getElementById('btnSimpanToko').textContent = '💾 Update Toko';
+  document.getElementById('btnBatalEditToko').style.display = 'inline-block';
+  
+  document.querySelector('.form-menu').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Batal edit user
+function cancelEditUser() {
+  editingUserId = null;
+  clearUserForm();
+  document.getElementById('btnSimpanUser').textContent = '💾 Simpan User';
+  document.getElementById('btnBatalEditUser').style.display = 'none';
+}
+
+// Batal edit toko
+function cancelEditToko() {
+  editingTokoId = null;
+  clearTokoForm();
+  document.getElementById('btnSimpanToko').textContent = '💾 Simpan Toko';
+  document.getElementById('btnBatalEditToko').style.display = 'none';
+}
+
+// Clear form user
+function clearUserForm() {
+  document.getElementById('inputUsername').value = '';
+  document.getElementById('inputUsername').disabled = false;
+  document.getElementById('inputPassword').value = '';
+  document.getElementById('inputNamaUser').value = '';
+  document.getElementById('inputTokoUser').value = '';
+  document.getElementById('inputRoleUser').value = 'KASIR';
+  document.getElementById('inputStatusUser').value = 'Aktif';
+}
+
+// Clear form toko
+function clearTokoForm() {
+  document.getElementById('inputIdToko').value = '';
+  document.getElementById('inputIdToko').disabled = false;
+  document.getElementById('inputNamaToko').value = '';
+  document.getElementById('inputAlamatToko').value = '';
+  document.getElementById('inputTeleponToko').value = '';
+  document.getElementById('inputStatusToko').value = 'Aktif';
+}
+
+// Delete user
+async function deleteUser(username) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus user ${username}?`)) {
+    return;
+  }
+  
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'deleteUser',
+        username: username,
+        idToko: kasirInfo.idToko,
+        levelAkses: kasirInfo.levelAkses
+      })
+    });
+    
+    const data = await res.json();
+    if (data && data.success) {
+      alert('User berhasil dihapus');
+      loadUserManagement();
+    } else {
+      alert('Gagal menghapus user: ' + (data.message || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Gagal menghapus user: ' + err.message);
+  }
+}
+
+// Delete toko
+async function deleteToko(tokoId) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus toko ${tokoId}?`)) {
+    return;
+  }
+  
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'deleteToko',
+        idToko: tokoId,
+        levelAkses: kasirInfo.levelAkses
+      })
+    });
+    
+    const data = await res.json();
+    if (data && data.success) {
+      alert('Toko berhasil dihapus');
+      loadUserManagement();
+    } else {
+      alert('Gagal menghapus toko: ' + (data.message || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Gagal menghapus toko: ' + err.message);
+  }
+}
+
+// Reset password user
+async function resetPasswordUser(username) {
+  const newPassword = prompt(`Reset password untuk ${username}\nMasukkan password baru:`);
+  
+  if (!newPassword || newPassword.length < 4) {
+    alert('Password harus minimal 4 karakter');
+    return;
+  }
+  
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'resetPassword',
+        username: username,
+        newPassword: newPassword,
+        idToko: kasirInfo.idToko,
+        levelAkses: kasirInfo.levelAkses
+      })
+    });
+    
+    const data = await res.json();
+    if (data && data.success) {
+      alert('Password berhasil direset');
+    } else {
+      alert('Gagal reset password: ' + (data.message || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Gagal reset password: ' + err.message);
+  }
+}
+
+// Simpan user
+async function saveUser() {
+  const username = document.getElementById('inputUsername').value.trim();
+  const password = document.getElementById('inputPassword').value;
+  const namaUser = document.getElementById('inputNamaUser').value.trim();
+  const toko = document.getElementById('inputTokoUser').value;
+  const levelAkses = document.getElementById('inputRoleUser').value;
+  const status = document.getElementById('inputStatusUser').value;
+  
+  // Validasi
+  if (!username) {
+    alert('Username harus diisi');
+    return;
+  }
+  if (!editingUserId && !password) {
+    alert('Password harus diisi untuk user baru');
+    return;
+  }
+  if (!namaUser) {
+    alert('Nama user harus diisi');
+    return;
+  }
+  if (!toko) {
+    alert('Toko harus dipilih');
+    return;
+  }
+  
+  try {
+    const action = editingUserId ? 'updateUser' : 'createUser';
+    const payload = {
+      action: action,
+      username: username,
+      namaUser: namaUser,
+      toko: toko,
+      levelAkses: levelAkses,
+      status: status,
+      idToko: kasirInfo.idToko,
+      levelAksesCurrent: kasirInfo.levelAkses
+    };
+    
+    if (!editingUserId) {
+      payload.password = password;
+    }
+    
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await res.json();
+    if (data && data.success) {
+      alert(editingUserId ? 'User berhasil diupdate' : 'User berhasil ditambahkan');
+      clearUserForm();
+      cancelEditUser();
+      loadUserManagement();
+    } else {
+      alert('Gagal menyimpan user: ' + (data.message || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Gagal menyimpan user: ' + err.message);
+  }
+}
+
+// Simpan toko
+async function saveToko() {
+  const tokoId = document.getElementById('inputIdToko').value.trim();
+  const namaToko = document.getElementById('inputNamaToko').value.trim();
+  const alamat = document.getElementById('inputAlamatToko').value.trim();
+  const telepon = document.getElementById('inputTeleponToko').value.trim();
+  const status = document.getElementById('inputStatusToko').value;
+  
+  // Validasi
+  if (!tokoId) {
+    alert('ID Toko harus diisi');
+    return;
+  }
+  if (!namaToko) {
+    alert('Nama toko harus diisi');
+    return;
+  }
+  
+  try {
+    const action = editingTokoId ? 'updateToko' : 'createToko';
+    const payload = {
+      action: action,
+      idToko: tokoId,
+      namaToko: namaToko,
+      alamat: alamat,
+      telepon: telepon,
+      status: status,
+      levelAkses: kasirInfo.levelAkses
+    };
+    
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    
+    const data = await res.json();
+    if (data && data.success) {
+      alert(editingTokoId ? 'Toko berhasil diupdate' : 'Toko berhasil ditambahkan');
+      clearTokoForm();
+      cancelEditToko();
+      loadUserManagement();
+    } else {
+      alert('Gagal menyimpan toko: ' + (data.message || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Gagal menyimpan toko: ' + err.message);
+  }
+}
+
+
+
+// Search user
+function setupUserManagementSearch() {
+  const searchInput = document.getElementById('searchUserManagement');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase().trim();
+      
+      if (!searchTerm) {
+        renderUserManagementList(userManagementData);
+        return;
+      }
+      
+      const filtered = userManagementData.filter(user => 
+        user.username.toLowerCase().includes(searchTerm) ||
+        user.nama_kasir.toLowerCase().includes(searchTerm) ||
+        user.nama_toko.toLowerCase().includes(searchTerm)
+      );
+      
+      renderUserManagementList(filtered);
+    });
+  }
 }
 
 // ==================== MENU MANAGEMENT FUNCTIONS ====================
@@ -70,7 +630,8 @@ async function loadMenuManagement() {
       method: 'POST',
       body: JSON.stringify({ 
         action: 'getMenuManagement',
-        idToko: kasirInfo.idToko 
+        idToko: kasirInfo.idToko,
+        levelAkses: kasirInfo.levelAkses
       })
     });
     
@@ -117,8 +678,8 @@ function renderMenuManagementList(filteredData = menuManagementData) {
       <td class="${stokClass}">${menu.stok}</td>
       <td>${menu.id_toko === 'ALL' ? '🌍 Semua Toko' : menu.id_toko}</td>
       <td>
-        <button class="btn-edit" data-id="${menu.id_menu}">✏️ Edit</button>
-        <button class="btn-delete" data-id="${menu.id_menu}">🗑️ Hapus</button>
+        ${canEditMenu(menu) ? `<button class="btn-edit" data-id="${menu.id_menu}">✏️ Edit</button>` : ''}
+        ${canDeleteMenu(menu) ? `<button class="btn-delete" data-id="${menu.id_menu}">🗑️ Hapus</button>` : ''}
       </td>
     `;
     tbody.appendChild(tr);
@@ -138,6 +699,19 @@ function renderMenuManagementList(filteredData = menuManagementData) {
       deleteMenu(menuId);
     });
   });
+}
+
+// Permission checks untuk menu
+function canEditMenu(menu) {
+  if (kasirInfo.levelAkses === 'OWNER') return true;
+  if (kasirInfo.levelAkses === 'ADMIN' && menu.id_toko === kasirInfo.idToko) return true;
+  return false;
+}
+
+function canDeleteMenu(menu) {
+  if (kasirInfo.levelAkses === 'OWNER') return true;
+  if (kasirInfo.levelAkses === 'ADMIN' && menu.id_toko === kasirInfo.idToko) return true;
+  return false;
 }
 
 // PERBAIKAN: Cek duplikat nama menu
@@ -171,7 +745,7 @@ function editMenu(menuId) {
   document.querySelector('.form-menu').scrollIntoView({ behavior: 'smooth' });
 }
 
-// Batal edit
+// Batal edit menu
 function cancelEdit() {
   editingMenuId = null;
   clearMenuForm();
@@ -205,15 +779,16 @@ async function deleteMenu(menuId) {
       body: JSON.stringify({
         action: 'deleteMenu',
         idMenu: menuId,
-        idToko: kasirInfo.idToko
+        idToko: kasirInfo.idToko,
+        levelAkses: kasirInfo.levelAkses
       })
     });
     
     const data = await res.json();
     if (data && data.success) {
       alert('Menu berhasil dihapus');
-      loadMenuManagement(); // Reload data
-      loadMenu(); // Reload menu untuk transaksi
+      loadMenuManagement();
+      loadMenu();
     } else {
       alert('Gagal menghapus menu: ' + (data.message || 'Unknown error'));
     }
@@ -247,7 +822,6 @@ async function saveMenu() {
   
   // PERBAIKAN: Cek duplikat nama menu
   if (isMenuNameDuplicate(namaMenu, editingMenuId)) {
-    // Tampilkan pesan error
     const existingError = document.getElementById('duplicateError');
     if (existingError) existingError.remove();
     
@@ -271,7 +845,8 @@ async function saveMenu() {
       kategori: kategori,
       harga: harga,
       stok: stok,
-      targetToko: idToko
+      targetToko: idToko,
+      levelAkses: kasirInfo.levelAkses
     };
     
     if (editingMenuId) {
@@ -288,8 +863,8 @@ async function saveMenu() {
       alert(editingMenuId ? 'Menu berhasil diupdate' : 'Menu berhasil ditambahkan');
       clearMenuForm();
       cancelEdit();
-      loadMenuManagement(); // Reload data
-      loadMenu(); // Reload menu untuk transaksi
+      loadMenuManagement();
+      loadMenu();
     } else {
       alert('Gagal menyimpan menu: ' + (data.message || 'Unknown error'));
     }
@@ -328,7 +903,11 @@ async function loadMenu(){
   try {
     const res = await fetch(SCRIPT_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'getMenuManagement', idToko: kasirInfo.idToko })
+      body: JSON.stringify({ 
+        action: 'getMenuManagement', 
+        idToko: kasirInfo.idToko,
+        levelAkses: kasirInfo.levelAkses
+      })
     });
     const data = await res.json();
     
@@ -657,7 +1236,8 @@ async function loadLaporan() {
         action: 'getLaporan',
         startDate: startDate,
         endDate: endDate,
-        idToko: kasirInfo.idToko
+        idToko: kasirInfo.idToko,
+        levelAkses: kasirInfo.levelAkses
       })
     });
     
@@ -1036,6 +1616,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Setup menu management search
   setupMenuManagementSearch();
   
+  // Setup user management search
+  setupUserManagementSearch();
+  
   // Set default dates for laporan
   const today = new Date();
   const oneWeekAgo = new Date();
@@ -1044,7 +1627,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('startDate').value = formatDateForInput(oneWeekAgo);
   document.getElementById('endDate').value = formatDateForInput(today);
 
-  // Login handler
+  // Login handler - PERBAIKAN: Include level akses
   document.getElementById('loginBtn').addEventListener('click', async () => {
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value.trim();
@@ -1059,9 +1642,14 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (data && data.success) {
         kasirInfo = data;
+        console.log('Login Success - User Info:', kasirInfo); // Debug
         document.getElementById('namaToko').innerText = kasirInfo.namaToko || 'Aplikasi Kasir';
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         document.getElementById('kasirPage').classList.add('active');
+        
+        // PERBAIKAN: Tampilkan tab berdasarkan level akses
+        showTabsBasedOnLevel();
+        
         await loadMenu();
         document.getElementById('loginMessage').innerText = '';
       } else {
@@ -1080,6 +1668,10 @@ document.addEventListener('DOMContentLoaded', () => {
     currentPage = 1;
     menuManagementData = [];
     editingMenuId = null;
+    userManagementData = [];
+    tokoManagementData = [];
+    editingUserId = null;
+    editingTokoId = null;
     document.getElementById('username').value = '';
     document.getElementById('password').value = '';
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1134,6 +1726,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // Menu management handlers
   document.getElementById('btnSimpanMenu').addEventListener('click', saveMenu);
   document.getElementById('btnBatalEdit').addEventListener('click', cancelEdit);
+
+  // User management handlers
+  document.getElementById('btnSimpanUser').addEventListener('click', saveUser);
+  document.getElementById('btnBatalEditUser').addEventListener('click', cancelEditUser);
+  document.getElementById('btnSimpanToko').addEventListener('click', saveToko);
+  document.getElementById('btnBatalEditToko').addEventListener('click', cancelEditToko);
+
+  // 🔥 PERBAIKAN: Auto-generate ID toko saat form dibuka
+document.getElementById('inputNamaToko').addEventListener('focus', function() {
+  const idTokoInput = document.getElementById('inputIdToko');
+  if (!idTokoInput.value || idTokoInput.value === '') {
+    // Generate temporary ID - akan diganti oleh backend saat simpan
+    idTokoInput.value = 'TEMP-' + Date.now();
+  }
+});
+
 
   // PERBAIKAN: Validasi duplikat nama menu saat input
   document.getElementById('inputNamaMenu').addEventListener('input', function(e) {
