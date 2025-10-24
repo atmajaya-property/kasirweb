@@ -56,9 +56,13 @@ function showTabsBasedOnLevel() {
     if (tabToko) tabToko.style.display = 'block';
     if (tabUser) tabUser.style.display = 'block';
     if (tabSetting) tabSetting.style.display = 'block';
-  } else if (level === 'ADMIN') {
-    if (tabManajemen) tabManajemen.style.display = 'block';
-    if (tabUser) tabUser.style.display = 'block';
+ } else if (level === 'ADMIN') {
+    tabManajemen.style.display = 'block';
+    tabUser.style.display = 'block';
+    console.log('ADMIN: Management & User tab ditampilkan');
+  } else {
+    // KASIR atau level lainnya - hanya kasir dan laporan
+    console.log('KASIR: Hanya tab Kasir & Laporan');
   }
 }
 
@@ -1797,4 +1801,5 @@ document.getElementById('inputNamaToko').addEventListener('focus', function() {
 
   // Auto load setting on page load
   loadSetting();
+
 });
