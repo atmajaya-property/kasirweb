@@ -590,6 +590,31 @@ header h1{margin:0;color:var(--accent);font-size:1.1rem}
   background: #e53935;
 }
 
+/* CSS untuk stok */
+.menu-item .stok {
+  font-size: 0.6rem;
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.stok-habis {
+  color: var(--danger);
+}
+
+.stok-sedikit {
+  color: var(--warning);
+}
+
+.menu-item.stok-habis {
+  background: #5a2a2a !important;
+  border-color: var(--danger) !important;
+}
+
+.menu-item.stok-sedikit {
+  background: #5a4a2a !important;
+  border-color: var(--warning) !important;
+}
+
 /* ==================== */
 /* TAB LAPORAN STYLES */
 /* ==================== */
