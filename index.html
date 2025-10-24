@@ -47,9 +47,11 @@
     <h1 id="namaToko"></h1>
     <div class="nav-tabs">
       <button class="nav-tab active" data-tab="kasir">💼 Kasir</button>
-      <button class="nav-tab" data-tab="manajemen">📦 Management</button>
+      <button class="nav-tab" data-tab="manajemen" id="tabManajemen" style="display:none">📦 Management</button>
+      <button class="nav-tab" data-tab="toko" id="tabToko" style="display:none">🏪 Toko</button>
+      <button class="nav-tab" data-tab="user" id="tabUser" style="display:none">👥 User</button>
       <button class="nav-tab" data-tab="laporan">📊 Laporan</button>
-      <button class="nav-tab" data-tab="setting">⚙️ Setting</button>
+      <button class="nav-tab" data-tab="setting" id="tabSetting" style="display:none">⚙️ Setting</button>
     </div>
     <button id="logoutBtn">Keluar</button>
   </header>
@@ -137,7 +139,7 @@
         <div class="form-group">
           <label for="inputNamaMenu">Nama Menu:</label>
           <input type="text" id="inputNamaMenu" placeholder="Nama menu">
-	  </div>
+        </div>
         <div class="form-group">
           <label for="inputKategori">Kategori:</label>
           <select id="inputKategori">
@@ -203,6 +205,142 @@
     </section>
   </div>
 
+  <!-- TAB MANAGEMENT TOKO -->
+  <div class="tab-content" data-tab="toko">
+    <section class="manajemen-section">
+      <h2>🏪 Management Toko</h2>
+      
+      <!-- Form Input Toko -->
+      <div class="form-menu">
+        <h3>➕ Tambah/Edit Toko</h3>
+        <div class="form-group">
+          <label for="inputIdToko">ID Toko:</label>
+          <input type="text" id="inputIdToko" placeholder="Auto-generate" readonly>
+        </div>
+        <div class="form-group">
+          <label for="inputNamaToko">Nama Toko:</label>
+          <input type="text" id="inputNamaToko" placeholder="Nama toko">
+        </div>
+        <div class="form-group">
+          <label for="inputAlamatToko">Alamat:</label>
+          <textarea id="inputAlamatToko" placeholder="Alamat toko" rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="inputTeleponToko">Telepon:</label>
+          <input type="text" id="inputTeleponToko" placeholder="Nomor telepon">
+        </div>
+        <div class="form-group">
+          <label for="inputStatusToko">Status:</label>
+          <select id="inputStatusToko">
+            <option value="Aktif">Aktif</option>
+            <option value="Nonaktif">Nonaktif</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button id="btnSimpanToko" class="btn btn-primary">💾 Simpan Toko</button>
+          <button id="btnBatalEditToko" class="btn btn-secondary" style="display:none">❌ Batal Edit</button>
+        </div>
+      </div>
+
+      <!-- Daftar Toko -->
+      <div class="daftar-menu">
+        <h3>📋 Daftar Toko</h3>
+        <div class="table-container">
+          <table class="manajemen-table">
+            <thead>
+              <tr>
+                <th>ID Toko</th>
+                <th>Nama Toko</th>
+                <th>Alamat</th>
+                <th>Telepon</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="daftarTokoBody">
+              <!-- Data toko akan diisi oleh JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- TAB MANAGEMENT USER -->
+  <div class="tab-content" data-tab="user">
+    <section class="manajemen-section">
+      <h2>👥 Management User</h2>
+      
+      <!-- Form Input User -->
+      <div class="form-menu">
+        <h3>➕ Tambah/Edit User</h3>
+        <div class="form-group">
+          <label for="inputUsername">Username:</label>
+          <input type="text" id="inputUsername" placeholder="Username untuk login">
+        </div>
+        <div class="form-group">
+          <label for="inputPassword">Password:</label>
+          <input type="password" id="inputPassword" placeholder="Password minimal 4 karakter">
+        </div>
+        <div class="form-group">
+          <label for="inputNamaUser">Nama Lengkap:</label>
+          <input type="text" id="inputNamaUser" placeholder="Nama lengkap user">
+        </div>
+        <div class="form-group">
+          <label for="inputTokoUser">Toko:</label>
+          <select id="inputTokoUser">
+            <option value="">Pilih Toko</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="inputRoleUser">Role:</label>
+          <select id="inputRoleUser">
+            <option value="kasir">Kasir</option>
+            <option value="admin">Admin</option>
+            <option value="owner">Owner</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="inputStatusUser">Status:</label>
+          <select id="inputStatusUser">
+            <option value="Aktif">Aktif</option>
+            <option value="Nonaktif">Nonaktif</option>
+          </select>
+        </div>
+        <div class="form-actions">
+          <button id="btnSimpanUser" class="btn btn-primary">💾 Simpan User</button>
+          <button id="btnBatalEditUser" class="btn btn-secondary" style="display:none">❌ Batal Edit</button>
+          <button id="btnResetPassword" class="btn btn-warning" style="display:none">🔄 Reset Password</button>
+        </div>
+      </div>
+
+      <!-- Daftar User -->
+      <div class="daftar-menu">
+        <h3>📋 Daftar User</h3>
+        <div class="search-wrap">
+          <input type="text" id="searchUserManagement" placeholder="🔍 Cari user..." class="search-input">
+        </div>
+        <div class="table-container">
+          <table class="manajemen-table">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Nama Lengkap</th>
+                <th>Toko</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="daftarUserBody">
+              <!-- Data user akan diisi oleh JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <!-- TAB LAPORAN -->
   <div class="tab-content" data-tab="laporan">
     <section class="laporan-section">
@@ -216,6 +354,12 @@
         <div class="filter-group">
           <label>Sampai Tanggal:</label>
           <input type="date" id="endDate">
+        </div>
+        <div class="filter-group">
+          <label>Toko:</label>
+          <select id="filterTokoLaporan">
+            <option value="">Semua Toko</option>
+          </select>
         </div>
         <div class="filter-group">
           <label>Kasir:</label>
@@ -241,6 +385,7 @@
             <tr>
               <th>Tanggal</th>
               <th>ID Transaksi</th>
+              <th>Toko</th>
               <th>Kasir</th>
               <th>Total</th>
               <th>Bayar</th>
