@@ -258,35 +258,45 @@ function renderTokoManagementList(filteredData = tokoManagementData) {
   });
 }
 
-// Populate dropdown toko
+// 🔥 PERBAIKAN 2: Populate dropdown toko untuk Admin hanya tampilkan toko sendiri
 function populateTokoDropdowns() {
   const userTokoSelect = document.getElementById('inputTokoUser');
   
   if (userTokoSelect) {
     userTokoSelect.innerHTML = '<option value="">Pilih Toko</option>';
-    tokoManagementData.forEach(toko => {
-      if (toko.status === 'Aktif') {
-        const option = document.createElement('option');
-        option.value = toko.id_toko;
-        option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
-        userTokoSelect.appendChild(option);
-      }
-    });
     
-    // Tambah option ALL untuk Owner
     if (kasirInfo.levelAkses === 'OWNER') {
+      // Owner bisa pilih semua toko + ALL
+      tokoManagementData.forEach(toko => {
+        if (toko.status === 'Aktif') {
+          const option = document.createElement('option');
+          option.value = toko.id_toko;
+          option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
+          userTokoSelect.appendChild(option);
+        }
+      });
+      
       const option = document.createElement('option');
       option.value = 'ALL';
       option.textContent = 'ALL - Semua Toko';
       userTokoSelect.appendChild(option);
+    } else if (kasirInfo.levelAkses === 'ADMIN') {
+      // Admin hanya bisa pilih toko sendiri
+      const tokoSendiri = tokoManagementData.find(t => t.id_toko === kasirInfo.idToko);
+      if (tokoSendiri && tokoSendiri.status === 'Aktif') {
+        const option = document.createElement('option');
+        option.value = tokoSendiri.id_toko;
+        option.textContent = `${tokoSendiri.id_toko} - ${tokoSendiri.nama_toko}`;
+        userTokoSelect.appendChild(option);
+      }
     }
   }
 }
 
-// Permission checks
+// 🔥 PERBAIKAN 2: Update permission checks untuk Admin
 function canEditUser(user) {
   if (kasirInfo.levelAkses === 'OWNER') return true;
-  if (kasirInfo.levelAkses === 'ADMIN' && user.id_toko === kasirInfo.idToko) return true;
+  if (kasirInfo.levelAkses === 'ADMIN' && user.id_toko === kasirInfo.idToko && user.level_akses !== 'OWNER') return true;
   return false;
 }
 
@@ -334,6 +344,13 @@ function editUser(username) {
   document.getElementById('inputRoleUser').value = user.level_akses;
   document.getElementById('inputStatusUser').value = user.status;
   
+  // 🔥 PERBAIKAN 2: Untuk Admin, batasi role yang bisa dipilih
+  if (kasirInfo.levelAkses === 'ADMIN') {
+    const roleSelect = document.getElementById('inputRoleUser');
+    roleSelect.innerHTML = '<option value="KASIR">Kasir</option>';
+    roleSelect.value = 'KASIR'; // Admin hanya bisa buat/edit KASIR
+  }
+  
   document.getElementById('btnSimpanUser').textContent = '💾 Update User';
   document.getElementById('btnBatalEditUser').style.display = 'inline-block';
   
@@ -376,14 +393,28 @@ function cancelEditToko() {
   document.getElementById('btnBatalEditToko').style.display = 'none';
 }
 
-// Clear form user
+// 🔥 PERBAIKAN 2: Clear form user dengan penyesuaian role untuk Admin
 function clearUserForm() {
   document.getElementById('inputUsername').value = '';
   document.getElementById('inputUsername').disabled = false;
   document.getElementById('inputPassword').value = '';
   document.getElementById('inputNamaUser').value = '';
   document.getElementById('inputTokoUser').value = '';
-  document.getElementById('inputRoleUser').value = 'KASIR';
+  
+  // Set role berdasarkan level akses
+  const roleSelect = document.getElementById('inputRoleUser');
+  if (kasirInfo.levelAkses === 'OWNER') {
+    roleSelect.innerHTML = `
+      <option value="KASIR">Kasir</option>
+      <option value="ADMIN">Admin</option>
+      <option value="OWNER">Owner</option>
+    `;
+    roleSelect.value = 'KASIR';
+  } else if (kasirInfo.levelAkses === 'ADMIN') {
+    roleSelect.innerHTML = '<option value="KASIR">Kasir</option>';
+    roleSelect.value = 'KASIR';
+  }
+  
   document.getElementById('inputStatusUser').value = 'Aktif';
 }
 
@@ -623,7 +654,7 @@ function setupUserManagementSearch() {
 
 // ==================== MENU MANAGEMENT FUNCTIONS - DIPERBAIKI ====================
 
-// 🔥 PERBAIKAN: Load data toko untuk dropdown management menu (khusus Owner)
+// 🔥 PERBAIKAN 1 & 3: Load data toko untuk dropdown management menu (khusus Owner)
 async function loadTokoForMenuManagement() {
   try {
     const res = await fetch(SCRIPT_URL, {
@@ -643,7 +674,7 @@ async function loadTokoForMenuManagement() {
   }
 }
 
-// 🔥 PERBAIKAN: Populate dropdown toko untuk menu management
+// 🔥 PERBAIKAN 1 & 3: Populate dropdown toko untuk menu management
 function populateTokoDropdownForMenu(tokoData) {
   const tokoSelect = document.getElementById('inputToko');
   if (!tokoSelect) return;
@@ -665,7 +696,100 @@ function populateTokoDropdownForMenu(tokoData) {
   }
 }
 
-// 🔥 PERBAIKAN: Load data untuk management menu dengan improvements
+// 🔥 PERBAIKAN 1: Setup filter toko untuk Owner di management menu
+function setupMenuManagementFilter() {
+  const searchContainer = document.querySelector('.daftar-menu .search-wrap');
+  if (!searchContainer) return;
+  
+  // Hanya untuk Owner
+  if (kasirInfo.levelAkses !== 'OWNER') return;
+  
+  // Cek apakah filter toko sudah ada
+  let filterToko = document.getElementById('filterTokoMenuManagement');
+  
+  if (!filterToko) {
+    // Buat elemen filter toko
+    const filterGroup = document.createElement('div');
+    filterGroup.className = 'filter-group';
+    filterGroup.innerHTML = `
+      <select id="filterTokoMenuManagement" style="min-width: 150px;">
+        <option value="">Semua Toko</option>
+        <option value="ALL">🌍 Semua Toko</option>
+      </select>
+    `;
+    searchContainer.appendChild(filterGroup);
+    
+    filterToko = document.getElementById('filterTokoMenuManagement');
+    
+    // Load data toko untuk filter
+    loadTokoForMenuFilter();
+    
+    // Event listener untuk filter toko
+    filterToko.addEventListener('change', (e) => {
+      const searchInput = document.getElementById('searchMenuManagement');
+      filterMenuManagementData(searchInput ? searchInput.value : '', e.target.value);
+    });
+  }
+}
+
+// 🔥 PERBAIKAN 1: Load toko untuk filter menu management
+async function loadTokoForMenuFilter() {
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        action: 'getToko',
+        levelAkses: kasirInfo.levelAkses
+      })
+    });
+    
+    const data = await res.json();
+    if (data && data.success) {
+      const filterToko = document.getElementById('filterTokoMenuManagement');
+      if (filterToko) {
+        data.data.forEach(toko => {
+          if (toko.status === 'Aktif' && toko.id_toko !== 'ALL') {
+            const option = document.createElement('option');
+            option.value = toko.id_toko;
+            option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
+            filterToko.appendChild(option);
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error load toko for filter:', err);
+  }
+}
+
+// 🔥 PERBAIKAN 1: Filter data menu management berdasarkan pencarian dan toko
+function filterMenuManagementData(searchTerm = '', tokoFilter = '') {
+  let filtered = menuManagementData;
+  
+  // Filter berdasarkan pencarian
+  if (searchTerm) {
+    const term = searchTerm.toLowerCase().trim();
+    filtered = filtered.filter(menu => 
+      menu.nama_menu.toLowerCase().includes(term) ||
+      menu.kategori.toLowerCase().includes(term) ||
+      menu.id_menu.toLowerCase().includes(term)
+    );
+  }
+  
+  // Filter berdasarkan toko (khusus Owner)
+  if (tokoFilter && kasirInfo.levelAkses === 'OWNER') {
+    if (tokoFilter === 'ALL') {
+      // Tampilkan semua menu dari semua toko
+      filtered = filtered;
+    } else {
+      filtered = filtered.filter(menu => menu.id_toko === tokoFilter);
+    }
+  }
+  
+  renderMenuManagementList(filtered);
+}
+
+// 🔥 PERBAIKAN 3: Load data untuk management menu dengan improvements
 async function loadMenuManagement() {
   try {
     const res = await fetch(SCRIPT_URL, {
@@ -686,6 +810,9 @@ async function loadMenuManagement() {
       if (kasirInfo.levelAkses === 'OWNER') {
         await loadTokoForMenuManagement();
       }
+      
+      // PERBAIKAN 1: Setup filter untuk management menu
+      setupMenuManagementFilter();
       
     } else {
       menuManagementData = [];
@@ -718,13 +845,26 @@ function renderMenuManagementList(filteredData = menuManagementData) {
     const tr = document.createElement('tr');
     const stokClass = menu.stok <= 0 ? 'stok-danger' : (menu.stok < 10 ? 'stok-warning' : '');
     
+    // 🔥 PERBAIKAN 3: Tampilkan nama toko untuk Admin/Owner
+    let tokoDisplay = menu.id_toko;
+    if (menu.id_toko === 'ALL') {
+      tokoDisplay = '🌍 Semua Toko';
+    } else if (kasirInfo.levelAkses === 'OWNER') {
+      // Untuk Owner, cari nama toko dari data toko
+      const tokoInfo = tokoManagementData.find(t => t.id_toko === menu.id_toko);
+      tokoDisplay = tokoInfo ? `${menu.id_toko} - ${tokoInfo.nama_toko}` : menu.id_toko;
+    } else if (kasirInfo.levelAkses === 'ADMIN') {
+      // Untuk Admin, tampilkan nama toko sendiri
+      tokoDisplay = `${menu.id_toko} - ${kasirInfo.namaToko || menu.id_toko}`;
+    }
+    
     tr.innerHTML = `
       <td>${menu.id_menu}</td>
       <td><strong>${menu.nama_menu}</strong></td>
       <td>${menu.kategori}</td>
       <td>Rp${formatRupiah(menu.harga)}</td>
       <td class="${stokClass}">${menu.stok}</td>
-      <td>${menu.id_toko === 'ALL' ? '🌍 Semua Toko' : menu.id_toko}</td>
+      <td>${tokoDisplay}</td>
       <td>
         ${canEditMenu(menu) ? `<button class="btn-edit" data-id="${menu.id_menu}">✏️ Edit</button>` : ''}
         ${canDeleteMenu(menu) ? `<button class="btn-delete" data-id="${menu.id_menu}">🗑️ Hapus</button>` : ''}
@@ -782,7 +922,17 @@ function editMenu(menuId) {
   document.getElementById('inputKategori').value = menu.kategori;
   document.getElementById('inputHarga').value = menu.harga;
   document.getElementById('inputStok').value = menu.stok || 0;
-  document.getElementById('inputToko').value = menu.id_toko;
+  
+  // 🔥 PERBAIKAN 3: Set nilai toko dengan benar
+  const tokoSelect = document.getElementById('inputToko');
+  if (tokoSelect) {
+    if (kasirInfo.levelAkses === 'OWNER') {
+      tokoSelect.value = menu.id_toko;
+    } else {
+      // Untuk Admin, hanya bisa edit menu toko sendiri
+      tokoSelect.value = 'current';
+    }
+  }
   
   // Update UI untuk mode edit
   document.getElementById('btnSimpanMenu').textContent = '💾 Update Menu';
@@ -808,7 +958,16 @@ function clearMenuForm() {
   document.getElementById('inputKategori').value = '';
   document.getElementById('inputHarga').value = '';
   document.getElementById('inputStok').value = '0';
-  document.getElementById('inputToko').value = 'current';
+  
+  // Set default toko berdasarkan level akses
+  const tokoSelect = document.getElementById('inputToko');
+  if (tokoSelect) {
+    if (kasirInfo.levelAkses === 'OWNER') {
+      tokoSelect.value = 'current';
+    } else {
+      tokoSelect.value = 'current';
+    }
+  }
   
   // Hapus pesan error duplikat
   const errorMsg = document.getElementById('duplicateError');
@@ -921,25 +1080,16 @@ async function saveMenu() {
   }
 }
 
-// Search menu di management
+// 🔥 PERBAIKAN 1: Search menu di management dengan filter toko
 function setupMenuManagementSearch() {
   const searchInput = document.getElementById('searchMenuManagement');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       const searchTerm = e.target.value.toLowerCase().trim();
+      const filterToko = document.getElementById('filterTokoMenuManagement');
+      const tokoFilter = filterToko ? filterToko.value : '';
       
-      if (!searchTerm) {
-        renderMenuManagementList(menuManagementData);
-        return;
-      }
-      
-      const filtered = menuManagementData.filter(menu => 
-        menu.nama_menu.toLowerCase().includes(searchTerm) ||
-        menu.kategori.toLowerCase().includes(searchTerm) ||
-        menu.id_menu.toLowerCase().includes(searchTerm)
-      );
-      
-      renderMenuManagementList(filtered);
+      filterMenuManagementData(searchTerm, tokoFilter);
     });
   }
 }
