@@ -19,8 +19,14 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr
 // ==================== MIDDLEWARE & CONFIG ====================
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// 🔥 UPDATE CORS untuk terima request dari mana saja
 app.use(cors({
-  origin: ['http://localhost', 'http://127.0.0.1', 'http://localhost:3000', 'http://127.0.0.1:3000', 'file://'],
+  origin: [
+    'http://localhost:3000',
+    'http://localhost', 
+    'https://kasir-web-app.vercel.app', // 🔥 URL VERCEL ANDA
+    'https://*.vercel.app'              // 🔥 SEMUA SUBDOMAIN VERCEL
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
@@ -1428,4 +1434,5 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('🔴 Unhandled Rejection at:', promise, 'reason:', reason);
+
 });
