@@ -25,7 +25,15 @@ pool.query('SELECT NOW()', (err, res) => {
 
 export default pool;
 
+// di database.js
 export default new Pool({
-  // ... config lain
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // Timeout configuration
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis: 30000,
 });
