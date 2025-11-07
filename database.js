@@ -21,10 +21,6 @@ pool.query('SELECT NOW()', (err, res) => {
     console.log('Database connected successfully:', res.rows[0]);
   }
 });
-
-
-export default pool;
-
 // di database.js
 export default new Pool({
   host: process.env.DB_HOST,
@@ -37,3 +33,4 @@ export default new Pool({
   connectionTimeoutMillis: 10000,
   idleTimeoutMillis: 30000,
 });
+
