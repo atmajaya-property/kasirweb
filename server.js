@@ -19,27 +19,13 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr
 // ==================== MIDDLEWARE & CONFIG ====================
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-// 🔥 UPDATE CORS untuk terima request dari mana saja
-// 🔥 UNIVERSAL CORS - Terima semua origin di production
-const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? ['https://*.vercel.app', 'https://yourdomain.com'] // Production origins
-  : ['http://localhost:3000', 'http://localhost'];     // Development origins
-
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, postman, etc)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
+  origin: ['http://localhost', 'http://127.0.0.1', 'http://localhost:3000', 'http://127.0.0.1:3000', 'file://'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
+
 // Handle preflight requests
 app.options('*', cors());
 
@@ -1423,22 +1409,18 @@ app.get('/health', (req, res) => {
 });
 
 // Start server
-// DI server.js - GANTI bagian akhir file
-
-// ✅ VERCEL COMPATIBLE VERSION
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📊 Test endpoints:`);
+  console.log(`   http://localhost:${PORT}/api/test`);
+  console.log(`   http://localhost:${PORT}/api/test-db`);
+  console.log(`   http://localhost:${PORT}/api/test-hybrid`);
+  console.log(`   http://localhost:${PORT}/api/test-transaction-hybrid`);
+  console.log(`   http://localhost:${PORT}/health`);
+  console.log(`👨‍💼 Frontend: http://localhost:${PORT}/kasir`);
   console.log(`🌐 Hybrid System: ${GOOGLE_SCRIPT_URL ? 'ACTIVE' : 'INACTIVE'}`);
-  
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`📊 Local Test endpoints:`);
-    console.log(`   http://localhost:${PORT}/api/test`);
-    console.log(`   http://localhost:${PORT}/api/test-db`);
-    console.log(`   http://localhost:${PORT}/health`);
-    console.log(`👨‍💼 Frontend: http://localhost:${PORT}/kasir`);
-  }
 });
+
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('🔴 Uncaught Exception:', error);
@@ -1446,7 +1428,4 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('🔴 Unhandled Rejection at:', promise, 'reason:', reason);
-
 });
-
-
