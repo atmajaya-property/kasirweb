@@ -20,18 +20,26 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // 🔥 UPDATE CORS untuk terima request dari mana saja
+// 🔥 UNIVERSAL CORS - Terima semua origin di production
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? ['https://*.vercel.app', 'https://yourdomain.com'] // Production origins
+  : ['http://localhost:3000', 'http://localhost'];     // Development origins
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost', 
-    'https://kasir-web-app.vercel.app', // 🔥 URL VERCEL ANDA
-    'https://*.vercel.app'              // 🔥 SEMUA SUBDOMAIN VERCEL
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, postman, etc)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
-
 // Handle preflight requests
 app.options('*', cors());
 
@@ -1436,3 +1444,4 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('🔴 Unhandled Rejection at:', promise, 'reason:', reason);
 
 });
+
