@@ -1,5 +1,7 @@
 // KONFIGURASI HYBRID SYSTEM
-const SCRIPT_URL = "/api"; 
+const SCRIPT_URL = window.location.hostname.includes('localhost') 
+  ? "http://localhost:3000/api" 
+  : "/api";
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr6wgRHFJY7PPqUGJxTidsy26mH-oQKUEq7CWYLNHc_Xpkha7yw6bY4Q/exec";
 const ITEMS_PER_PAGE = 20;
 const CACHE_TTL = 5 * 60 * 1000; // 5 menit
@@ -3958,3 +3960,4 @@ function setupSubTabNavigation() {
   });
 
 }
+
