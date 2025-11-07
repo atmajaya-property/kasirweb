@@ -1,0 +1,42 @@
+# Environment variables - JANGAN DIUPLOAD!
+.env
+.env.local
+.env.production
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database files - JANGAN DIUPLOAD!
+*.db
+*.sqlite
+*.mdb
+
+# Log files
+logs/
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backup files
+*.backup
+*.bak
