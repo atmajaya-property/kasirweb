@@ -1,7 +1,19 @@
 // KONFIGURASI HYBRID SYSTEM
-const SCRIPT_URL = window.location.hostname.includes('localhost') 
-  ? "http://localhost:3000/api" 
-  : "/api";
+// ✅ DYNAMIC API URL - Auto detect environment
+const getApiBaseUrl = () => {
+  const isLocalhost = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1';
+  
+  if (isLocalhost) {
+    return "http://localhost:3000/api";
+  } else {
+    // Relative path untuk production (Vercel)
+    return "/api";
+  }
+};
+
+const SCRIPT_URL = getApiBaseUrl();
+console.log('🔧 API Base URL:', SCRIPT_URL);
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr6wgRHFJY7PPqUGJxTidsy26mH-oQKUEq7CWYLNHc_Xpkha7yw6bY4Q/exec";
 const ITEMS_PER_PAGE = 20;
 const CACHE_TTL = 5 * 60 * 1000; // 5 menit
@@ -3960,4 +3972,5 @@ function setupSubTabNavigation() {
   });
 
 }
+
 
