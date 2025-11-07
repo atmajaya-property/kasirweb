@@ -22,4 +22,10 @@ pool.query('SELECT NOW()', (err, res) => {
   }
 });
 
+
 export default pool;
+
+export default new Pool({
+  // ... config lain
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
