@@ -1423,18 +1423,22 @@ app.get('/health', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📊 Test endpoints:`);
-  console.log(`   http://localhost:${PORT}/api/test`);
-  console.log(`   http://localhost:${PORT}/api/test-db`);
-  console.log(`   http://localhost:${PORT}/api/test-hybrid`);
-  console.log(`   http://localhost:${PORT}/api/test-transaction-hybrid`);
-  console.log(`   http://localhost:${PORT}/health`);
-  console.log(`👨‍💼 Frontend: http://localhost:${PORT}/kasir`);
-  console.log(`🌐 Hybrid System: ${GOOGLE_SCRIPT_URL ? 'ACTIVE' : 'INACTIVE'}`);
-});
+// DI server.js - GANTI bagian akhir file
 
+// ✅ VERCEL COMPATIBLE VERSION
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 Hybrid System: ${GOOGLE_SCRIPT_URL ? 'ACTIVE' : 'INACTIVE'}`);
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`📊 Local Test endpoints:`);
+    console.log(`   http://localhost:${PORT}/api/test`);
+    console.log(`   http://localhost:${PORT}/api/test-db`);
+    console.log(`   http://localhost:${PORT}/health`);
+    console.log(`👨‍💼 Frontend: http://localhost:${PORT}/kasir`);
+  }
+});
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('🔴 Uncaught Exception:', error);
@@ -1444,4 +1448,5 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('🔴 Unhandled Rejection at:', promise, 'reason:', reason);
 
 });
+
 
