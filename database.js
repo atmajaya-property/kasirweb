@@ -6,7 +6,7 @@ dotenv.config();
 const { Pool } = pkg;
 
 const pool = new Pool({
-  host: process.env.PG_HOST || '@db.szdoghayqkhfatrervtf.supabase.co',
+  host: process.env.PG_HOST || 'db.szdoghayqkhfatrervtf.supabase.co',
   port: process.env.PG_PORT || 5432,
   database: process.env.PG_DATABASE || 'dbkasir',
   user: process.env.PG_USER || 'postgres',
@@ -27,4 +27,5 @@ pool.on('error', (err) => {
 });
 
 export default pool;
+
 
