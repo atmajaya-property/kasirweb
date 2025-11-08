@@ -1,11 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import pkg from 'pg';
+import pool from './database.js';  // Import dari database.js
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-const { Pool } = pkg;
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,34 +12,6 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 3000;
-
-// ==================== KONFIGURASI DATABASE ====================
-const pool = new Pool({
-  user: process.env.PG_USER,
-  host: process.env.PG_HOST,
-  database: process.env.PG_DATABASE,
-  password: process.env.PG_PASSWORD,
-  port: process.env.PG_PORT || 5432,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-});
-
-// Test koneksi database
-const testConnection = async () => {
-  try {
-    const client = await pool.connect();
-    console.log('✅ PostgreSQL connected successfully');
-    const result = await client.query('SELECT NOW()');
-    console.log('📊 Database time:', result.rows[0].now);
-    client.release();
-    return true;
-  } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
-    return false;
-  }
-};
 
 // ==================== KONFIGURASI HYBRID ====================
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr6wgRHFJY7PPqUGJxTidsy26mH-oQKUEq7CWYLNHc_Xpkha7yw6bY4Q/exec";
@@ -218,7 +189,7 @@ function handleDatabaseError(error, res) {
   }
 }
 
-// ==================== TEST ENDPOINTS ====================
+// ==================== TEST & DEBUG ENDPOINTS ====================
 app.get('/api/test', (req, res) => {
   res.json({ 
     success: true, 
@@ -266,6 +237,55 @@ app.get('/api/health', async (req, res) => {
       success: false,
       message: 'Service unavailable',
       error: error.message
+    });
+  }
+});
+
+// Debug endpoint untuk cek environment variables & koneksi
+app.get('/api/debug-env', async (req, res) => {
+  try {
+    const dbResult = await pool.query('SELECT NOW() as time');
+    
+    res.json({
+      success: true,
+      environment: {
+        PG_HOST: process.env.PG_HOST ? '✅ Set' : '❌ Not set',
+        PG_DATABASE: process.env.PG_DATABASE ? '✅ Set' : '❌ Not set',
+        PG_USER: process.env.PG_USER ? '✅ Set' : '❌ Not set',
+        PG_PASSWORD: process.env.PG_PASSWORD ? '✅ Set' : '❌ Not set',
+        PG_PORT: process.env.PG_PORT ? '✅ Set' : '❌ Not set',
+        NODE_ENV: process.env.NODE_ENV || 'Not set'
+      },
+      database: {
+        connected: true,
+        time: dbResult.rows[0].time
+      },
+      raw: {
+        PG_HOST: process.env.PG_HOST,
+        PG_USER: process.env.PG_USER,
+        PG_DATABASE: process.env.PG_DATABASE
+      }
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      environment: {
+        PG_HOST: process.env.PG_HOST ? '✅ Set' : '❌ Not set',
+        PG_DATABASE: process.env.PG_DATABASE ? '✅ Set' : '❌ Not set',
+        PG_USER: process.env.PG_USER ? '✅ Set' : '❌ Not set',
+        PG_PASSWORD: process.env.PG_PASSWORD ? '✅ Set' : '❌ Not set',
+        PG_PORT: process.env.PG_PORT ? '✅ Set' : '❌ Not set',
+        NODE_ENV: process.env.NODE_ENV || 'Not set'
+      },
+      database: {
+        connected: false,
+        error: error.message
+      },
+      raw: {
+        PG_HOST: process.env.PG_HOST,
+        PG_USER: process.env.PG_USER,
+        PG_DATABASE: process.env.PG_DATABASE
+      }
     });
   }
 });
@@ -1266,17 +1286,22 @@ app.use((error, req, res, next) => {
 
 const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🚀 =================================`);
-  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🗄️ PostgreSQL: ${process.env.PG_HOST}:${process.env.PG_PORT}`);
-  console.log(`📊 Database: ${process.env.PG_DATABASE}`);
+  console.log(`🗄️ Database: ${process.env.PG_HOST}:${process.env.PG_PORT}`);
+  console.log(`📊 Database Name: ${process.env.PG_DATABASE}`);
   console.log(`🌐 Hybrid System: ${GOOGLE_SCRIPT_URL ? 'ACTIVE' : 'INACTIVE'}`);
   console.log(`=================================\n`);
 
   // Test database connection on startup
-  const dbConnected = await testConnection();
-  if (!dbConnected) {
-    console.log('⚠️  Warning: Database connection failed. Some features may not work.');
+  try {
+    const client = await pool.connect();
+    console.log('✅ Database connected successfully');
+    const result = await client.query('SELECT NOW()');
+    console.log('📊 Database time:', result.rows[0].now);
+    client.release();
+  } catch (error) {
+    console.error('❌ Database connection failed:', error.message);
   }
 });
 
