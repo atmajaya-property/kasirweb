@@ -1,17 +1,34 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import pool from './database.js';
+import pkg from 'pg';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 dotenv.config();
 
+const { Pool } = pkg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const PORT = process.env.SERVER_PORT || 3000;
+const PORT = process.env.PORT || 3000;
+
+// ==================== KONFIGURASI DATABASE ====================
+// 🔥 PERBAIKAN UTAMA: Gunakan connection string dari environment variables
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+
+// Test koneksi database saat startup
+pool.on('connect', () => {
+  console.log('✅ Connected to PostgreSQL database');
+});
+
+pool.on('error', (err) => {
+  console.error('❌ Database connection error:', err);
+});
 
 // ==================== KONFIGURASI HYBRID ====================
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr6wgRHFJY7PPqUGJxTidsy26mH-oQKUEq7CWYLNHc_Xpkha7yw6bY4Q/exec";
@@ -19,8 +36,28 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr
 // ==================== MIDDLEWARE & CONFIG ====================
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// 🔥 PERBAIKAN: CORS untuk Vercel deployment
+const allowedOrigins = [
+  'http://localhost',
+  'http://127.0.0.1', 
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'file://',
+  process.env.FRONTEND_URL // Untuk production
+].filter(Boolean);
+
 app.use(cors({
-  origin: ['http://localhost', 'http://127.0.0.1', 'http://localhost:3000', 'http://127.0.0.1:3000', 'file://'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
@@ -39,6 +76,30 @@ app.use((req, res, next) => {
     console.log('Body:', JSON.stringify(req.body).substring(0, 500) + '...');
   }
   next();
+});
+
+// ==================== HEALTH CHECK & DATABASE TEST ====================
+// Endpoint untuk test koneksi database
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW() as current_time, version() as version');
+    res.json({ 
+      success: true, 
+      message: '✅ Database connection successful!',
+      database: {
+        time: result.rows[0].current_time,
+        version: result.rows[0].version
+      },
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (error) {
+    console.error('Database test error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: '❌ Database connection failed: ' + error.message,
+      connectionString: process.env.POSTGRES_URL ? 'Configured' : 'Missing'
+    });
+  }
 });
 
 // ==================== HYBRID SYSTEM FUNCTIONS ====================
@@ -161,24 +222,9 @@ app.get('/api/test', (req, res) => {
   res.json({ 
     success: true, 
     message: 'Server is working!',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
   });
-});
-
-app.get('/api/test-db', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT COUNT(*) as count FROM users');
-    res.json({ 
-      success: true, 
-      message: 'Database is working!',
-      userCount: result.rows[0].count
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      message: 'Database error: ' + error.message 
-    });
-  }
 });
 
 // Test endpoint untuk hybrid system - BISA DIAKSES VIA GET
@@ -297,6 +343,14 @@ app.post('/api/login', async (req, res) => {
     console.log('Login attempt:', req.body);
     const { username, password } = req.body;
     
+    // 🔥 PERBAIKAN: Tambahkan error handling yang lebih robust
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false, 
+        message: 'Username dan password harus diisi' 
+      });
+    }
+    
     const result = await pool.query(
       'SELECT * FROM users WHERE username = $1 AND password = $2 AND status = $3',
       [username, password, 'Aktif']
@@ -322,7 +376,7 @@ app.post('/api/login', async (req, res) => {
         username: user.username
       });
     } else {
-      res.json({ 
+      res.status(401).json({ 
         success: false, 
         message: 'Login gagal: username atau password salah.' 
       });
@@ -360,7 +414,7 @@ app.post('/api/getUserManagement', async (req, res) => {
     
     const usersResult = await pool.query(query, params);
     
-        // Get toko data - 🔥 DIPERBAIKI: Hilangkan duplikat
+    // Get toko data - 🔥 DIPERBAIKI: Hilangkan duplikat
     const tokoResult = await pool.query(`
       SELECT 
         id_toko, 
@@ -373,6 +427,7 @@ app.post('/api/getUserManagement', async (req, res) => {
       GROUP BY id_toko
       ORDER BY id_toko
     `);    
+    
     res.json({
       success: true,
       users: usersResult.rows,
@@ -395,15 +450,15 @@ app.post('/api/createUser', async (req, res) => {
     
     // Permission check
     if (levelAksesCurrent === 'KASIR') {
-      return res.json({ success: false, message: "Tidak memiliki akses" });
+      return res.status(403).json({ success: false, message: "Tidak memiliki akses" });
     }
     if (levelAksesCurrent === 'ADMIN' && (toko !== idToko || levelAkses !== 'KASIR')) {
-      return res.json({ success: false, message: "Hanya bisa buat kasir untuk toko sendiri" });
+      return res.status(403).json({ success: false, message: "Hanya bisa buat kasir untuk toko sendiri" });
     }
     
     // Validasi input
     if (!username || !password || !namaUser || !toko) {
-      return res.json({ success: false, message: "Data tidak lengkap" });
+      return res.status(400).json({ success: false, message: "Data tidak lengkap" });
     }
     
     // Cek duplikat username
@@ -413,7 +468,7 @@ app.post('/api/createUser', async (req, res) => {
     );
     
     if (existingUser.rows.length > 0) {
-      return res.json({ success: false, message: "Username sudah digunakan" });
+      return res.status(409).json({ success: false, message: "Username sudah digunakan" });
     }
     
     // Dapatkan nama toko
@@ -446,7 +501,7 @@ app.post('/api/updateUser', async (req, res) => {
     
     // Permission check
     if (levelAksesCurrent === 'KASIR') {
-      return res.json({ success: false, message: "Tidak memiliki akses" });
+      return res.status(403).json({ success: false, message: "Tidak memiliki akses" });
     }
     
     // Dapatkan nama toko
@@ -479,7 +534,7 @@ app.post('/api/deleteUser', async (req, res) => {
     
     // Permission check
     if (levelAksesCurrent === 'KASIR') {
-      return res.json({ success: false, message: "Tidak memiliki akses" });
+      return res.status(403).json({ success: false, message: "Tidak memiliki akses" });
     }
     
     // Soft delete (ubah status)
@@ -503,7 +558,7 @@ app.post('/api/resetPassword', async (req, res) => {
     
     // Permission check
     if (levelAksesCurrent === 'KASIR' && username !== currentUsername) {
-      return res.json({ success: false, message: "Hanya bisa reset password sendiri" });
+      return res.status(403).json({ success: false, message: "Hanya bisa reset password sendiri" });
     }
     
     // Update password
@@ -606,15 +661,15 @@ app.post('/api/createMenu', async (req, res) => {
     
     // Permission check
     if (levelAkses === 'KASIR') {
-      return res.json({ success: false, message: "Tidak memiliki akses" });
+      return res.status(403).json({ success: false, message: "Tidak memiliki akses" });
     }
     if (levelAkses === 'ADMIN' && targetToko !== idToko && targetToko !== 'ALL') {
-      return res.json({ success: false, message: "Hanya bisa buat menu untuk toko sendiri" });
+      return res.status(403).json({ success: false, message: "Hanya bisa buat menu untuk toko sendiri" });
     }
     
     // Validasi input
     if (!namaMenu || !kategori || !harga) {
-      return res.json({ success: false, message: "Data tidak lengkap" });
+      return res.status(400).json({ success: false, message: "Data tidak lengkap" });
     }
     
     // Generate ID Menu
@@ -668,12 +723,12 @@ app.post('/api/updateMenu', async (req, res) => {
     
     // Permission check
     if (levelAkses === 'KASIR') {
-      return res.json({ success: false, message: "Tidak memiliki akses" });
+      return res.status(403).json({ success: false, message: "Tidak memiliki akses" });
     }
     
     // Validasi input
     if (!idMenu || !namaMenu || !kategori || !harga) {
-      return res.json({ success: false, message: "Data tidak lengkap" });
+      return res.status(400).json({ success: false, message: "Data tidak lengkap" });
     }
     
     await pool.query(
@@ -697,7 +752,7 @@ app.post('/api/deleteMenu', async (req, res) => {
     
     // Permission check
     if (levelAkses === 'KASIR') {
-      return res.json({ success: false, message: "Tidak memiliki akses" });
+      return res.status(403).json({ success: false, message: "Tidak memiliki akses" });
     }
     
     await pool.query(
@@ -722,7 +777,7 @@ app.post('/api/getToko', async (req, res) => {
     
     // Validasi permission
     if (levelAkses === 'KASIR') {
-      return res.json({ success: false, message: "Tidak memiliki akses" });
+      return res.status(403).json({ success: false, message: "Tidak memiliki akses" });
     }
     
     // 🔥 PERBAIKAN: Gunakan GROUP BY untuk pastikan id_toko benar-benar unik
@@ -762,12 +817,12 @@ app.post('/api/createToko', async (req, res) => {
     
     // Permission check - hanya OWNER
     if (levelAkses !== 'OWNER') {
-      return res.json({ success: false, message: "Hanya OWNER yang bisa membuat toko" });
+      return res.status(403).json({ success: false, message: "Hanya OWNER yang bisa membuat toko" });
     }
     
     // Validasi input
     if (!namaToko) {
-      return res.json({ success: false, message: "Nama toko harus diisi" });
+      return res.status(400).json({ success: false, message: "Nama toko harus diisi" });
     }
     
     // Generate ID Toko
@@ -798,12 +853,12 @@ app.post('/api/updateToko', async (req, res) => {
     
     // Permission check - hanya OWNER
     if (levelAkses !== 'OWNER') {
-      return res.json({ success: false, message: "Hanya OWNER yang bisa mengedit toko" });
+      return res.status(403).json({ success: false, message: "Hanya OWNER yang bisa mengedit toko" });
     }
     
     // Validasi input
     if (!idToko || !namaToko) {
-      return res.json({ success: false, message: "Data tidak lengkap" });
+      return res.status(400).json({ success: false, message: "Data tidak lengkap" });
     }
     
     // Update toko
@@ -828,12 +883,12 @@ app.post('/api/deleteToko', async (req, res) => {
     
     // Permission check - hanya OWNER
     if (levelAkses !== 'OWNER') {
-      return res.json({ success: false, message: "Hanya OWNER yang bisa menghapus toko" });
+      return res.status(403).json({ success: false, message: "Hanya OWNER yang bisa menghapus toko" });
     }
     
     // Tidak boleh hapus toko ALL
     if (idToko === 'ALL') {
-      return res.json({ success: false, message: "Tidak bisa menghapus toko ALL" });
+      return res.status(400).json({ success: false, message: "Tidak bisa menghapus toko ALL" });
     }
     
     // Soft delete (ubah status)
@@ -1157,7 +1212,7 @@ app.post('/api/updateSetting', async (req, res) => {
     
     // Permission check - hanya OWNER
     if (levelAkses !== 'OWNER') {
-      return res.json({ success: false, message: "Hanya OWNER yang bisa mengedit setting" });
+      return res.status(403).json({ success: false, message: "Hanya OWNER yang bisa mengedit setting" });
     }
     
     // Update settings
@@ -1179,184 +1234,25 @@ app.post('/api/updateSetting', async (req, res) => {
   }
 });
 
-// ==================== HYBRID SYSTEM COMPATIBILITY ====================
+// ==================== ERROR HANDLING & 404 ====================
 
-// Endpoint untuk handle Google Apps Script style requests
-app.post('/api/:action', async (req, res) => {
-  try {
-    const { action } = req.params;
-    const body = req.body;
-    
-    console.log(`Hybrid request: ${action}`, body);
-    
-    // Mapping actions dari Google Script style ke PostgreSQL style
-    const actionMap = {
-      'login': 'login',
-      'getMenu': 'getMenu',
-      'getMenuManagement': 'getMenuManagement',
-      'createMenu': 'createMenu',
-      'updateMenu': 'updateMenu',
-      'deleteMenu': 'deleteMenu',
-      'getUserManagement': 'getUserManagement',
-      'createUser': 'createUser',
-      'updateUser': 'updateUser',
-      'deleteUser': 'deleteUser',
-      'resetPassword': 'resetPassword',
-      'getToko': 'getToko',
-      'createToko': 'createToko',
-      'updateToko': 'updateToko',
-      'deleteToko': 'deleteToko',
-      'saveTransaksi': 'saveTransaksi',
-      'getLaporan': 'getLaporan',
-      'getSetting': 'getSetting',
-      'updateSetting': 'updateSetting'
-    };
-    
-    const mappedAction = actionMap[action];
-    if (!mappedAction) {
-      return res.status(404).json({ 
-        success: false, 
-        message: `Action tidak dikenali: ${action}` 
-      });
-    }
-    
-    // Redirect ke endpoint yang sesuai
-    const mockReq = {
-      ...req,
-      body: body,
-      originalUrl: `/api/${mappedAction}`
-    };
-    
-    const mockRes = {
-      json: (data) => res.json(data),
-      status: (code) => ({
-        json: (data) => res.status(code).json(data)
-      })
-    };
-    
-    // Panggil endpoint berdasarkan action
-    if (mappedAction === 'login') {
-      await loginHandler(mockReq, mockRes);
-    } else if (mappedAction === 'getMenu') {
-      await getMenuHandler(mockReq, mockRes);
-    } else if (mappedAction === 'getLaporan') {
-      await getLaporanHandler(mockReq, mockRes);
-    } else {
-      // Untuk action lainnya, return not implemented
-      res.status(501).json({ 
-        success: false, 
-        message: `Action ${mappedAction} not implemented in hybrid mode` 
-      });
-    }
-    
-  } catch (error) {
-    console.error('Hybrid endpoint error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error processing request: ' + error.message 
-    });
-  }
+// Handle 404
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route not found: ${req.originalUrl}`
+  });
 });
 
-// Handler functions untuk hybrid system
-async function loginHandler(req, res) {
-  try {
-    const { username, password } = req.body;
-    
-    const result = await pool.query(
-      'SELECT * FROM users WHERE username = $1 AND password = $2 AND status = $3',
-      [username, password, 'Aktif']
-    );
-
-    if (result.rows.length > 0) {
-      const user = result.rows[0];
-      
-      // Update last login
-      await pool.query(
-        'UPDATE users SET terakhir_login = $1 WHERE username = $2',
-        [new Date(), username]
-      );
-
-      res.json({
-        success: true,
-        namaKasir: user.nama_kasir,
-        idToko: user.id_toko,
-        namaToko: user.nama_toko,
-        levelAkses: user.level_akses,
-        username: user.username
-      });
-    } else {
-      res.json({ 
-        success: false, 
-        message: 'Login gagal: username atau password salah.' 
-      });
-    }
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error login: ' + error.message 
-    });
-  }
-}
-
-async function getMenuHandler(req, res) {
-  try {
-    const { idToko, levelAkses } = req.body;
-    
-    let query = `
-      SELECT id_menu as id, nama_menu as nama, harga, kategori, stok 
-      FROM menu 
-      WHERE status = 'Aktif'
-    `;
-    
-    let params = [];
-    
-    if (levelAkses === 'ADMIN') {
-      query += ' AND (id_toko = $1 OR id_toko = $2)';
-      params = [idToko, 'ALL'];
-    } else if (levelAkses === 'KASIR') {
-      query += ' AND (id_toko = $1 OR id_toko = $2)';
-      params = [idToko, 'ALL'];
-    }
-
-    const result = await pool.query(query, params);
-    
-    res.json({
-      success: true,
-      data: result.rows
-    });
-  } catch (error) {
-    console.error('Get menu error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error mengambil menu: ' + error.message 
-    });
-  }
-}
-
-async function getLaporanHandler(req, res) {
-  try {
-    const { startDate, endDate, idToko, levelAkses, filterToko, filterMenu, includeAnalytics } = req.body;
-    
-    // Panggil fungsi getLaporan utama dengan parameter yang sesuai
-    const mockReq = { body: { startDate, endDate, idToko, levelAkses, filterToko, filterMenu, includeAnalytics } };
-    const mockRes = {
-      json: (data) => res.json(data),
-      status: (code) => ({
-        json: (data) => res.status(code).json(data)
-      })
-    };
-    
-    await app._router.handle(mockReq, mockRes);
-  } catch (error) {
-    console.error('Get laporan handler error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error processing laporan request: ' + error.message 
-    });
-  }
-}
+// Global error handler
+app.use((error, req, res, next) => {
+  console.error('🔴 Global Error Handler:', error);
+  res.status(500).json({
+    success: false,
+    message: 'Internal Server Error',
+    error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+  });
+});
 
 // ==================== FRONTEND SERVING ====================
 
@@ -1395,37 +1291,61 @@ app.get('/', (req, res) => {
       updateSetting: '/api/updateSetting',
       frontend: '/kasir'
     },
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
+app.get('/health', async (req, res) => {
+  try {
+    // Test database connection
+    await pool.query('SELECT 1');
+    
+    res.json({ 
+      status: 'healthy',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (error) {
+    res.status(503).json({ 
+      status: 'unhealthy',
+      database: 'disconnected',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('🔄 Shutting down gracefully...');
+  await pool.end();
+  process.exit(0);
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Test endpoints:`);
   console.log(`   http://localhost:${PORT}/api/test`);
   console.log(`   http://localhost:${PORT}/api/test-db`);
   console.log(`   http://localhost:${PORT}/api/test-hybrid`);
-  console.log(`   http://localhost:${PORT}/api/test-transaction-hybrid`);
   console.log(`   http://localhost:${PORT}/health`);
   console.log(`👨‍💼 Frontend: http://localhost:${PORT}/kasir`);
-  console.log(`🌐 Hybrid System: ${GOOGLE_SCRIPT_URL ? 'ACTIVE' : 'INACTIVE'}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Database: ${process.env.POSTGRES_URL ? 'Configured' : 'Missing - check environment variables'}`);
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('🔴 Uncaught Exception:', error);
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('🔴 Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
 });
