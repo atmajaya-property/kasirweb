@@ -1,44 +1,9 @@
-// 🔥 EMERGENCY FIX - FORCE GOOGLE SHEETS MODE
-const FORCE_GOOGLE_SHEETS_MODE = true;
-console.log('🚨 EMERGENCY MODE: Force Google Sheets Active');
+// 🔥 HYBRID SYSTEM - AUTO DETECT MODE
+let FORCE_GOOGLE_SHEETS_MODE = localStorage.getItem('force_google_sheets') === 'true';
+console.log('🚨 EMERGENCY MODE:', FORCE_GOOGLE_SHEETS_MODE ? 'Force Google Sheets Active' : 'PostgreSQL Mode');
 
-// Modifikasi hybridFetch function - CARI FUNCTION INI di script.js:
-async function hybridFetch(endpoint, data = {}) {
-  console.log(`🔄 Hybrid Fetch: ${endpoint}`, data);
-  
-  // 🔥 BYPASS POSTGRESQL - LANGSUNG KE GOOGLE SHEETS
-  if (FORCE_GOOGLE_SHEETS_MODE) {
-    console.log('🚨 Bypassing PostgreSQL, langsung ke Google Sheets');
-    const action = endpoint.replace('/api/', '');
-    const payload = { ...data, action: action };
-    
-    try {
-      console.log(`🔗 Direct to Google Sheets: ${GOOGLE_SCRIPT_URL}`);
-      const response = await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      console.log(`📡 Google Sheets Response (no-cors): Request sent`);
-      
-      // Return success response untuk avoid error
-      return {
-        success: true,
-        message: 'Google Sheets fallback active',
-        data: getFallbackData(endpoint, data)
-      };
-      
-    } catch (error) {
-      console.error(`❌ Google Sheets failed: ${error.message}`);
-      return getFallbackData(endpoint, data);
-    }
-  }
-  
-  // ... kode asli Anda yang mencoba PostgreSQL ...
-}
-// KONFIGURASI HYBRID SYSTEM
+// ==================== KONFIGURASI HYBRID SYSTEM ====================
+
 // ✅ DYNAMIC API URL - Auto detect environment
 const getApiBaseUrl = () => {
   const isLocalhost = window.location.hostname === 'localhost' || 
@@ -47,7 +12,7 @@ const getApiBaseUrl = () => {
   if (isLocalhost) {
     return "http://localhost:3000/api";
   } else {
-    // Relative path untuk production (Vercel)
+    // Relative path untuk production (Vercel/Netlify)
     return "/api";
   }
 };
@@ -58,7 +23,8 @@ const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrM2zFCnabXr
 const ITEMS_PER_PAGE = 20;
 const CACHE_TTL = 5 * 60 * 1000; // 5 menit
 
-// Global Variables dengan caching
+// ==================== GLOBAL VARIABLES ====================
+
 let kasirInfo = {};
 let transaksi = [];
 let menuData = [];
@@ -82,7 +48,6 @@ let paymentMethods = {
 };
 let isMultiplePayment = false;
 
-
 // Cache System
 const cache = {
   menu: { data: null, timestamp: 0 },
@@ -92,7 +57,7 @@ const cache = {
   settings: { data: null, timestamp: 0 }
 };
 
-// ==================== 🔥 PERBAIKAN: VALIDASI URL ====================
+// ==================== SYSTEM INITIALIZATION ====================
 
 // Validasi URL configuration
 console.log('🔧 Konfigurasi URL:', {
@@ -114,18 +79,26 @@ async function testConnection() {
       },
       signal: AbortSignal.timeout(5000)
     });
+    
     console.log(`📡 PostgreSQL Test: ${testResponse.status}`);
     
     if (testResponse.ok) {
       const result = await testResponse.json();
       console.log('✅ PostgreSQL aktif:', result);
+      
+      // Update mode berdasarkan koneksi
+      FORCE_GOOGLE_SHEETS_MODE = false;
+      localStorage.setItem('force_google_sheets', 'false');
     }
   } catch (error) {
     console.warn('⚠️ PostgreSQL tidak tersedia:', error.message);
+    
+    // Enable emergency mode
+    FORCE_GOOGLE_SHEETS_MODE = true;
+    localStorage.setItem('force_google_sheets', 'true');
+    console.log('🚨 Emergency Mode: Switching to Google Sheets');
   }
 }
-
-// ==================== 🔥 PERBAIKAN: GLOBAL ERROR HANDLING ====================
 
 // Global error handler untuk fetch
 function setupGlobalErrorHandling() {
@@ -136,6 +109,7 @@ function setupGlobalErrorHandling() {
     // Show user-friendly message for network errors
     if (event.reason && event.reason.message && event.reason.message.includes('fetch')) {
       console.warn('🌐 Network error detected');
+      showNotification('Koneksi internet terganggu', 'warning');
     }
   });
   
@@ -143,6 +117,9 @@ function setupGlobalErrorHandling() {
   window.addEventListener('online', function() {
     console.log('🌐 Koneksi internet tersedia');
     showNotification('Koneksi internet tersedia', 'success');
+    
+    // Test koneksi database ketika online kembali
+    setTimeout(testConnection, 2000);
   });
   
   window.addEventListener('offline', function() {
@@ -151,285 +128,147 @@ function setupGlobalErrorHandling() {
   });
 }
 
-// ==================== HYBRID SYSTEM DENGAN CORS FIX ====================
+// ==================== HYBRID FETCH SYSTEM ====================
 
-// 🔥 PERBAIKAN BESAR: Hybrid Fetch dengan CORS handling
-async function hybridFetch(endpoint, data, method = 'POST') {
+// 🔥 PERBAIKAN BESAR: Hybrid Fetch dengan fallback otomatis
+async function hybridFetch(endpoint, data = {}, method = 'POST') {
   const action = endpoint.replace('/api/', '');
   const payload = { ...data, action: action };
   
   console.log(`🔄 Hybrid Fetch: ${endpoint}`, { data: payload });
   
-  // Priority 1: Coba PostgreSQL backend dulu
-  try {
-    console.log(`🔗 Mencoba PostgreSQL: ${SCRIPT_URL}${endpoint}`);
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
-    const response = await fetch(`${SCRIPT_URL}${endpoint}`, {
-      method: method,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(data),
-      signal: controller.signal,
-      credentials: 'include' // 🔥 FIX CORS: Include credentials
-    });
-    
-    clearTimeout(timeoutId);
-    
-    console.log(`📡 PostgreSQL Response Status: ${response.status}`);
-    
-    if (response.ok) {
-      const result = await response.json();
-      console.log(`✅ PostgreSQL Success: ${endpoint}`, result);
-      
-      if (result.success !== false) {
-        return result;
-      } else {
-        console.warn(`⚠️ PostgreSQL returned error: ${result.message}`);
-        throw new Error(result.message || 'PostgreSQL error');
-      }
-    } else {
-      console.warn(`⚠️ PostgreSQL HTTP error: ${response.status}`);
-      // Try to get error message from response
-      try {
-        const errorText = await response.text();
-        console.error('📄 Error response:', errorText);
-      } catch (e) {
-        console.error('❌ Cannot read error response');
-      }
-      throw new Error(`HTTP ${response.status}`);
-    }
-  } catch (postgresError) {
-    console.log(`❌ PostgreSQL failed: ${postgresError.message}`);
-    
-    // Priority 2: Fallback ke Google Sheets dengan CORS proxy alternative
+  // Priority 1: Coba PostgreSQL backend dulu (kecuali emergency mode)
+  if (!FORCE_GOOGLE_SHEETS_MODE) {
     try {
-      console.log(`🔗 Mencoba Google Sheets: ${GOOGLE_SCRIPT_URL}`);
+      console.log(`🔗 Mencoba PostgreSQL: ${SCRIPT_URL}${endpoint}`);
       
-      // 🔥 CORS FIX: Gunakan mode 'no-cors' atau alternative approach
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       
-      // Coba dengan mode no-cors dulu
-      const response = await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors', // 🔥 FIX CORS: Use no-cors mode
+      const response = await fetch(`${SCRIPT_URL}${endpoint}`, {
+        method: method,
         headers: { 
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
-        body: JSON.stringify(payload),
-        signal: controller.signal
+        body: method !== 'GET' ? JSON.stringify(data) : undefined,
+        signal: controller.signal,
+        credentials: 'include'
       });
       
       clearTimeout(timeoutId);
       
-      // Dengan mode no-cors, kita tidak bisa membaca response
-      console.log(`📡 Google Sheets Response (no-cors): Request sent`);
+      console.log(`📡 PostgreSQL Response Status: ${response.status}`);
       
-      // Karena no-cors, kita anggap berhasil untuk avoid error
-      // Dalam real implementation, you might want different approach
-      return {
-        success: true,
-        message: 'Google Sheets fallback (no-cors mode)',
-        data: []
-      };
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`✅ PostgreSQL Success: ${endpoint}`, result);
+        
+        if (result.success !== false) {
+          return result;
+        } else {
+          console.warn(`⚠️ PostgreSQL returned error: ${result.message}`);
+          throw new Error(result.message || 'PostgreSQL error');
+        }
+      } else {
+        console.warn(`⚠️ PostgreSQL HTTP error: ${response.status}`);
+        // Try to get error message from response
+        try {
+          const errorText = await response.text();
+          console.error('📄 Error response:', errorText);
+        } catch (e) {
+          console.error('❌ Cannot read error response');
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (postgresError) {
+      console.log(`❌ PostgreSQL failed: ${postgresError.message}`);
       
-    } catch (googleError) {
-      console.error(`❌ Both backends failed: ${endpoint}`, googleError);
-      throw new Error(`Koneksi ke server gagal: ${googleError.message}`);
+      // Switch to emergency mode jika koneksi database gagal
+      if (postgresError.message.includes('fetch') || postgresError.message.includes('timeout')) {
+        FORCE_GOOGLE_SHEETS_MODE = true;
+        localStorage.setItem('force_google_sheets', 'true');
+        console.log('🚨 Switching to Emergency Mode (Google Sheets)');
+      }
     }
+  }
+  
+  // Priority 2: Fallback ke Google Sheets
+  try {
+    console.log(`🔗 Mencoba Google Sheets: ${GOOGLE_SCRIPT_URL}`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    // Gunakan mode 'no-cors' untuk Google Apps Script
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    // Dengan mode no-cors, kita tidak bisa membaca response
+    console.log(`📡 Google Sheets Response (no-cors): Request sent`);
+    
+    // Return success response untuk avoid error
+    return {
+      success: true,
+      message: 'Google Sheets fallback active',
+      data: getFallbackData(endpoint, data),
+      fallback: true
+    };
+    
+  } catch (googleError) {
+    console.error(`❌ Both backends failed: ${endpoint}`, googleError);
+    
+    // Return fallback data sebagai last resort
+    return {
+      success: false,
+      message: `Koneksi ke server gagal: ${googleError.message}`,
+      data: getFallbackData(endpoint, data),
+      fallback: true
+    };
+  }
+}
+
+// Fallback data untuk ketika kedua backend down
+function getFallbackData(endpoint, data) {
+  const action = endpoint.replace('/api/', '');
+  
+  switch(action) {
+    case 'getMenu':
+      return menuData.length > 0 ? menuData : [
+        { id: 'M001', nama: 'Produk Contoh 1', harga: 10000, kategori: 'Makanan', stok: 10 },
+        { id: 'M002', nama: 'Produk Contoh 2', harga: 15000, kategori: 'Minuman', stok: 5 }
+      ];
+    
+    case 'getMenuManagement':
+      return menuManagementData.length > 0 ? menuManagementData : [];
+    
+    case 'getUserManagement':
+      return {
+        users: userManagementData.length > 0 ? userManagementData : [],
+        toko: tokoManagementData.length > 0 ? tokoManagementData : []
+      };
+    
+    case 'getLaporan':
+      return laporanData.length > 0 ? laporanData : [];
+    
+    case 'getSetting':
+      return currentSettings;
+    
+    default:
+      return [];
   }
 }
 
 // ==================== UTILITY FUNCTIONS ====================
-
-// 🔥 FUNCTION MULTIPLE PAYMENT - COMPACT VERSION
-
-// Toggle antara single dan multiple payment
-function togglePaymentMode() {
-  const singleMode = document.getElementById('paymentSingle');
-  const multipleMode = document.getElementById('paymentMultiple');
-  
-  if (!isMultiplePayment) {
-    // Switch ke Multiple Payment
-    isMultiplePayment = true;
-    singleMode.style.display = 'none';
-    multipleMode.style.display = 'block';
-    
-    // Initialize values dari cash input
-    const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
-    const cashValue = parseNumberFromString(document.getElementById('cashInput').value);
-    
-    // Set tunai dengan nilai dari cash input, atau total jika cash = total
-    if (cashValue === total || cashValue === 0) {
-      paymentMethods.tunai = total;
-    } else {
-      paymentMethods.tunai = cashValue;
-    }
-    
-    updateMultiplePaymentDisplay();
-    
-  } else {
-    // Switch kembali ke Single Payment
-    isMultiplePayment = false;
-    singleMode.style.display = 'flex';
-    multipleMode.style.display = 'none';
-    
-    // Update cash input dengan total dari multiple payment
-    const totalPaid = calculateTotalPaid();
-    document.getElementById('cashInput').value = formatRupiah(totalPaid);
-    hitungKembali();
-  }
-}
-
-// Update tampilan multiple payment
-function updateMultiplePaymentDisplay() {
-  const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
-  const totalPaid = calculateTotalPaid();
-  const change = totalPaid - total;
-  
-  // Update input values
-  Object.keys(paymentMethods).forEach(method => {
-    const input = document.querySelector(`.payment-input-small[data-method="${method}"]`);
-    if (input) {
-      input.value = paymentMethods[method] > 0 ? formatRupiah(paymentMethods[method]) : '';
-    }
-    
-    // Update active state
-    const methodElement = document.querySelector(`.payment-method-horizontal[data-method="${method}"]`);
-    if (methodElement) {
-      if (paymentMethods[method] > 0) {
-        methodElement.classList.add('active');
-      } else {
-        methodElement.classList.remove('active');
-      }
-    }
-  });
-  
-  // Update summary
-  document.getElementById('paymentTotalH').textContent = formatRupiah(total);
-  document.getElementById('paymentTotalPaidH').textContent = formatRupiah(totalPaid);
-  document.getElementById('paymentChangeH').textContent = formatRupiah(Math.max(0, change));
-  
-  // Update warna summary
-  const paidElement = document.getElementById('paymentTotalPaidH');
-  const changeElement = document.getElementById('paymentChangeH');
-  
-  if (totalPaid >= total) {
-    paidElement.className = 'total-paid';
-    changeElement.className = 'change-amount';
-  } else {
-    paidElement.style.color = 'var(--warning)';
-    changeElement.style.color = 'var(--danger)';
-  }
-}
-
-// Hitung total dari semua payment methods
-function calculateTotalPaid() {
-  return Object.values(paymentMethods).reduce((sum, amount) => sum + amount, 0);
-}
-
-// Handle input di multiple payment
-// 🔥 UPDATE: Handle watermark behavior
-function setupMultiplePaymentInputs() {
-  const container = document.getElementById('paymentMultiple');
-  if (!container) return;
-  
-  // Event delegation untuk semua payment inputs
-  container.addEventListener('input', function(e) {
-    if (e.target.classList.contains('payment-input-small')) {
-      const method = e.target.getAttribute('data-method');
-      const value = parseNumberFromString(e.target.value);
-      
-      paymentMethods[method] = value;
-      updateMultiplePaymentDisplay();
-      
-      // 🔥 UPDATE: Handle watermark visibility
-      if (value > 0) {
-        e.target.placeholder = ''; // Hilangkan watermark jika ada value
-      } else {
-        // Kembalikan watermark berdasarkan method
-        const watermarks = {
-          tunai: 'Tunai',
-          debit: 'Debit', 
-          ewallet: 'E-Wallet',
-          qris: 'QRIS'
-        };
-        e.target.placeholder = watermarks[method];
-      }
-    }
-  });
-  
-  // 🔥 UPDATE: Focus behavior dengan watermark
-  container.addEventListener('focusin', function(e) {
-    if (e.target.classList.contains('payment-input-small')) {
-      const input = e.target;
-      setTimeout(() => {
-        input.select();
-        // Saat focus, sembunyikan sementara watermark
-        input.setAttribute('data-original-placeholder', input.placeholder);
-        input.placeholder = '';
-      }, 10);
-    }
-  });
-  
-  container.addEventListener('focusout', function(e) {
-    if (e.target.classList.contains('payment-input-small')) {
-      const input = e.target;
-      const method = input.getAttribute('data-method');
-      const value = parseNumberFromString(input.value);
-      
-      // Kembalikan watermark jika tidak ada value
-      if (value === 0) {
-        const watermarks = {
-          tunai: 'Tunai',
-          debit: 'Debit',
-          ewallet: 'E-Wallet', 
-          qris: 'QRIS'
-        };
-        input.placeholder = watermarks[method];
-      }
-    }
-  });
-  
-  // Click method badge untuk focus input
-  container.addEventListener('click', function(e) {
-    if (e.target.closest('.method-badge')) {
-      const methodBadge = e.target.closest('.method-badge');
-      const input = methodBadge.querySelector('.payment-input-small');
-      if (input) {
-        input.focus();
-        input.select();
-      }
-    }
-  });
-  
-  // Enter key untuk pindah antar methods
-  container.addEventListener('keydown', function(e) {
-    if (e.target.classList.contains('payment-input-small') && e.key === 'Enter') {
-      e.preventDefault();
-      const methods = ['tunai', 'debit', 'ewallet', 'qris'];
-      const currentMethod = e.target.getAttribute('data-method');
-      const currentIndex = methods.indexOf(currentMethod);
-      
-      if (currentIndex !== -1 && currentIndex < methods.length - 1) {
-        const nextMethod = methods[currentIndex + 1];
-        const nextInput = document.querySelector(`.payment-input-small[data-method="${nextMethod}"]`);
-        if (nextInput) {
-          nextInput.focus();
-          nextInput.select();
-        }
-      } else {
-        // Jika di method terakhir, focus ke tombol selesai
-        document.getElementById('btnSelesai').focus();
-      }
-    }
-  });
-}
 
 // Debounce Function untuk performance
 function debounce(func, wait) {
@@ -444,130 +283,19 @@ function debounce(func, wait) {
   };
 }
 
-// 🔥 PERBAIKAN: Fungsi untuk deduplikasi data toko
-function deduplicateTokoData(tokoData) {
-  const uniqueToko = new Map();
-  
-  tokoData.forEach(toko => {
-    if (toko.status === 'Aktif' && toko.id_toko !== 'ALL') {
-      if (!uniqueToko.has(toko.id_toko)) {
-        uniqueToko.set(toko.id_toko, toko);
-      }
-    }
-  });
-  
-  return Array.from(uniqueToko.values());
-}
-
-// 🔥 PERBAIKAN: populateTokoDropdownForMenu dengan deduplikasi
-// 🔥 PERBAIKAN: populateTokoDropdownForMenu dengan deduplikasi
-function populateTokoDropdownForMenu(tokoData) {
-  const tokoSelect = document.getElementById('inputToko');
-  if (!tokoSelect) return;
-  
-  const defaultOptions = tokoSelect.innerHTML;
-  tokoSelect.innerHTML = defaultOptions;
-  
-  if (kasirInfo.levelAkses === 'OWNER' && tokoData && tokoData.length > 0) {
-    // HAPUS DUPLIKAT: Gunakan hanya toko unik
-    const uniqueToko = deduplicateTokoData(tokoData);
-    
-    uniqueToko.forEach(toko => {
-      const option = document.createElement('option');
-      option.value = toko.id_toko;
-      option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
-      tokoSelect.appendChild(option);
-    });
-  }
-}
-
-// 🔥 PERBAIKAN: loadTokoForMenuFilter dengan deduplikasi  
-// 🔥 PERBAIKAN: loadTokoForMenuFilter dengan deduplikasi  
-async function loadTokoForMenuFilter() {
-  try {
-    const cachedToko = getCachedData('toko');
-    if (cachedToko) {
-      const filterToko = document.getElementById('filterTokoMenuManagement');
-      if (filterToko) {
-        // HAPUS DUPLIKAT: Gunakan hanya toko unik
-        const uniqueToko = deduplicateTokoData(cachedToko);
-        
-        uniqueToko.forEach(toko => {
-          const option = document.createElement('option');
-          option.value = toko.id_toko;
-          option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
-          filterToko.appendChild(option);
-        });
-      }
-      return;
-    }
-    
-
-    const data = await hybridFetch('/getToko', { 
-      levelAkses: kasirInfo.levelAkses
-    });
-    
-    if (data && data.success) {
-      const filterToko = document.getElementById('filterTokoMenuManagement');
-      if (filterToko) {
-        // HAPUS DUPLIKAT: Gunakan hanya toko unik
-        const uniqueToko = deduplicateTokoData(data.data);
-        
-        uniqueToko.forEach(toko => {
-          const option = document.createElement('option');
-          option.value = toko.id_toko;
-          option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
-          filterToko.appendChild(option);
-        });
-      }
-    }
-  } catch (err) {
-    console.error('Error load toko for filter:', err);
-  }
-}
-
-// 🔥 PERBAIKAN: populateTokoDropdowns dengan deduplikasi
-function populateTokoDropdowns() {
-  const userTokoSelect = document.getElementById('inputTokoUser');
-  
-  if (userTokoSelect) {
-    userTokoSelect.innerHTML = '<option value="">Pilih Toko</option>';
-    
-    const filteredToko = tokoManagementData.filter(toko => {
-      if (kasirInfo.levelAkses === 'OWNER') return true;
-      if (kasirInfo.levelAkses === 'ADMIN') return toko.id_toko === kasirInfo.idToko;
-      return false;
-    });
-    
-    // HAPUS DUPLIKAT: Gunakan hanya toko unik
-    const uniqueToko = deduplicateTokoData(filteredToko);
-    
-    uniqueToko.forEach(toko => {
-      const option = document.createElement('option');
-      option.value = toko.id_toko;
-      option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
-      userTokoSelect.appendChild(option);
-    });
-    
-    if (kasirInfo.levelAkses === 'OWNER') {
-      const option = document.createElement('option');
-      option.value = 'ALL';
-      option.textContent = 'ALL - Semua Toko';
-      userTokoSelect.appendChild(option);
-    }
-  }
-}
-// Helper functions
+// Format Rupiah
 function formatRupiah(angka){
   const n = parseInt(angka) || 0;
   return n.toLocaleString('id-ID');
 }
 
+// Parse number dari string input
 function parseNumberFromString(s){
   if (!s) return 0;
   return parseInt((s + '').replace(/[^\d]/g, '')) || 0;
 }
 
+// Format date untuk input
 function formatDateForInput(date) {
   return date.toISOString().split('T')[0];
 }
@@ -683,52 +411,207 @@ function updateTotalOnly() {
   // Update total display saja
   document.getElementById('totalHarga').textContent = formatRupiah(total);
   
-  // 🔥 AUTO-UPDATE CASH INPUT ke nilai total (sesuai permintaan)
-  const cashInput = document.getElementById('cashInput');
-  cashInput.value = formatRupiah(total);
+  // AUTO-UPDATE CASH INPUT ke nilai total
+  if (!isMultiplePayment) {
+    const cashInput = document.getElementById('cashInput');
+    cashInput.value = formatRupiah(total);
+  }
   
   // Hitung kembalian
   hitungKembali();
 }
 
-// 🔥 FUNGSI BARU: Switch ke subtab tertentu
-// 🔥 FUNGSI BARU: Switch ke subtab tertentu - VERSI DIPERBAIKI
-function switchToSubTab(subtabName) {
-  console.log('🔄 Switching to subtab:', subtabName);
+// ==================== MULTIPLE PAYMENT SYSTEM ====================
+
+// Toggle antara single dan multiple payment
+function togglePaymentMode() {
+  const singleMode = document.getElementById('paymentSingle');
+  const multipleMode = document.getElementById('paymentMultiple');
   
-  // Cari di tab management yang aktif
-  const activeManagementTab = document.querySelector('.tab-content[data-tab="manajemen"].active');
-  if (!activeManagementTab) {
-    console.log('❌ Tab management tidak aktif');
-    return;
+  if (!isMultiplePayment) {
+    // Switch ke Multiple Payment
+    isMultiplePayment = true;
+    singleMode.style.display = 'none';
+    multipleMode.style.display = 'block';
+    
+    // Initialize values dari cash input
+    const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
+    const cashValue = parseNumberFromString(document.getElementById('cashInput').value);
+    
+    // Set tunai dengan nilai dari cash input, atau total jika cash = total
+    if (cashValue === total || cashValue === 0) {
+      paymentMethods.tunai = total;
+    } else {
+      paymentMethods.tunai = cashValue;
+    }
+    
+    updateMultiplePaymentDisplay();
+    
+  } else {
+    // Switch kembali ke Single Payment
+    isMultiplePayment = false;
+    singleMode.style.display = 'flex';
+    multipleMode.style.display = 'none';
+    
+    // Update cash input dengan total dari multiple payment
+    const totalPaid = calculateTotalPaid();
+    document.getElementById('cashInput').value = formatRupiah(totalPaid);
+    hitungKembali();
   }
+}
+
+// Update tampilan multiple payment
+function updateMultiplePaymentDisplay() {
+  const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
+  const totalPaid = calculateTotalPaid();
+  const change = totalPaid - total;
   
-  const subtabBtns = activeManagementTab.querySelectorAll('.subtab-btn');
-  const subtabContents = activeManagementTab.querySelectorAll('.subtab-content');
-  
-  console.log('🔍 Found subtab buttons:', subtabBtns.length);
-  console.log('🔍 Found subtab contents:', subtabContents.length);
-  
-  // Update active button
-  subtabBtns.forEach(btn => {
-    btn.classList.remove('active');
-    if (btn.dataset.subtab === subtabName) {
-      btn.classList.add('active');
-      console.log('✅ Activated button:', subtabName);
+  // Update input values
+  Object.keys(paymentMethods).forEach(method => {
+    const input = document.querySelector(`.payment-input-small[data-method="${method}"]`);
+    if (input) {
+      input.value = paymentMethods[method] > 0 ? formatRupiah(paymentMethods[method]) : '';
+    }
+    
+    // Update active state
+    const methodElement = document.querySelector(`.payment-method-horizontal[data-method="${method}"]`);
+    if (methodElement) {
+      if (paymentMethods[method] > 0) {
+        methodElement.classList.add('active');
+      } else {
+        methodElement.classList.remove('active');
+      }
     }
   });
   
-  // Show target content
-  subtabContents.forEach(content => {
-    content.classList.remove('active');
-    if (content.dataset.subtab === subtabName) {
-      content.classList.add('active');
-      console.log('✅ Activated content:', subtabName);
+  // Update summary
+  document.getElementById('paymentTotalH').textContent = formatRupiah(total);
+  document.getElementById('paymentTotalPaidH').textContent = formatRupiah(totalPaid);
+  document.getElementById('paymentChangeH').textContent = formatRupiah(Math.max(0, change));
+  
+  // Update warna summary
+  const paidElement = document.getElementById('paymentTotalPaidH');
+  const changeElement = document.getElementById('paymentChangeH');
+  
+  if (totalPaid >= total) {
+    paidElement.className = 'total-paid';
+    changeElement.className = 'change-amount';
+  } else {
+    paidElement.style.color = 'var(--warning)';
+    changeElement.style.color = 'var(--danger)';
+  }
+}
+
+// Hitung total dari semua payment methods
+function calculateTotalPaid() {
+  return Object.values(paymentMethods).reduce((sum, amount) => sum + amount, 0);
+}
+
+// Setup multiple payment inputs
+function setupMultiplePaymentInputs() {
+  const container = document.getElementById('paymentMultiple');
+  if (!container) return;
+  
+  // Event delegation untuk semua payment inputs
+  container.addEventListener('input', function(e) {
+    if (e.target.classList.contains('payment-input-small')) {
+      const method = e.target.getAttribute('data-method');
+      const value = parseNumberFromString(e.target.value);
+      
+      paymentMethods[method] = value;
+      updateMultiplePaymentDisplay();
+      
+      // Handle watermark visibility
+      if (value > 0) {
+        e.target.placeholder = '';
+      } else {
+        const watermarks = {
+          tunai: 'Tunai',
+          debit: 'Debit', 
+          ewallet: 'E-Wallet',
+          qris: 'QRIS'
+        };
+        e.target.placeholder = watermarks[method];
+      }
+    }
+  });
+  
+  // Focus behavior dengan watermark
+  container.addEventListener('focusin', function(e) {
+    if (e.target.classList.contains('payment-input-small')) {
+      const input = e.target;
+      setTimeout(() => {
+        input.select();
+        input.setAttribute('data-original-placeholder', input.placeholder);
+        input.placeholder = '';
+      }, 10);
+    }
+  });
+  
+  container.addEventListener('focusout', function(e) {
+    if (e.target.classList.contains('payment-input-small')) {
+      const input = e.target;
+      const method = input.getAttribute('data-method');
+      const value = parseNumberFromString(input.value);
+      
+      // Kembalikan watermark jika tidak ada value
+      if (value === 0) {
+        const watermarks = {
+          tunai: 'Tunai',
+          debit: 'Debit',
+          ewallet: 'E-Wallet', 
+          qris: 'QRIS'
+        };
+        input.placeholder = watermarks[method];
+      }
+    }
+  });
+  
+  // Click method badge untuk focus input
+  container.addEventListener('click', function(e) {
+    if (e.target.closest('.method-badge')) {
+      const methodBadge = e.target.closest('.method-badge');
+      const input = methodBadge.querySelector('.payment-input-small');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }
+  });
+  
+  // Enter key untuk pindah antar methods
+  container.addEventListener('keydown', function(e) {
+    if (e.target.classList.contains('payment-input-small') && e.key === 'Enter') {
+      e.preventDefault();
+      const methods = ['tunai', 'debit', 'ewallet', 'qris'];
+      const currentMethod = e.target.getAttribute('data-method');
+      const currentIndex = methods.indexOf(currentMethod);
+      
+      if (currentIndex !== -1 && currentIndex < methods.length - 1) {
+        const nextMethod = methods[currentIndex + 1];
+        const nextInput = document.querySelector(`.payment-input-small[data-method="${nextMethod}"]`);
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.select();
+        }
+      } else {
+        document.getElementById('btnSelesai').focus();
+      }
     }
   });
 }
 
-// ==================== THEME & SETTING FUNCTIONS ====================
+// Reset payment methods
+function resetPaymentMethods() {
+  paymentMethods = {
+    tunai: 0,
+    debit: 0,
+    ewallet: 0, 
+    qris: 0
+  };
+}
+
+// ==================== THEME & SETTING SYSTEM ====================
 
 // 🔥 PERBAIKAN REAL-TIME: Theme System Modern
 function applyTheme(themeName) {
@@ -748,7 +631,7 @@ function applyTheme(themeName) {
   console.log('✅ Theme applied successfully');
 }
 
-// 🔥 PERBAIKAN REAL-TIME: Font System
+// Font System
 function applyFontSettings(fontFamily, fontSize) {
   const root = document.documentElement;
   const body = document.body;
@@ -788,7 +671,7 @@ function applyFontSettings(fontFamily, fontSize) {
   document.body.offsetHeight;
 }
 
-// 🔥 PERBAIKAN REAL-TIME: Layout Settings
+// Layout Settings
 function applyLayoutSettings(layoutMode, sidebarPosition) {
   const root = document.documentElement;
   
@@ -819,7 +702,7 @@ function applyLayoutSettings(layoutMode, sidebarPosition) {
   document.body.offsetHeight;
 }
 
-// 🔥 PERBAIKAN: Apply semua settings sekaligus
+// Apply semua settings sekaligus
 function applyAllSettings(settings) {
   console.log('🚀 Applying all settings:', settings);
   
@@ -837,7 +720,7 @@ function applyAllSettings(settings) {
   console.log('✅ All settings applied successfully');
 }
 
-// 🔥 FUNGSI BARU: Save settings to localStorage
+// Save settings to localStorage
 function saveSettingToLocalStorage() {
   if (kasirInfo.idToko) {
     localStorage.setItem(`settings_${kasirInfo.idToko}`, JSON.stringify(currentSettings));
@@ -846,7 +729,7 @@ function saveSettingToLocalStorage() {
 
 // ==================== TAB MANAGEMENT ====================
 
-// 🔥 PERBAIKAN: Fungsi untuk menampilkan tab berdasarkan level akses
+// Fungsi untuk menampilkan tab berdasarkan level akses
 function showTabsBasedOnLevel() {
   if (!kasirInfo || !kasirInfo.levelAkses) return;
   
@@ -912,6 +795,1901 @@ function setupTabNavigation() {
   });
 }
 
+// Setup Sub Tab Navigation
+function setupSubTabNavigation() {
+  const subtabBtns = document.querySelectorAll('.subtab-btn');
+  const subtabContents = document.querySelectorAll('.subtab-content');
+  
+  subtabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetSubtab = btn.dataset.subtab;
+      
+      // Update active button
+      subtabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      // Show target content
+      subtabContents.forEach(content => {
+        content.classList.remove('active');
+        if (content.dataset.subtab === targetSubtab) {
+          content.classList.add('active');
+        }
+      });
+    });
+  });
+}
+
+// 🔥 FUNGSI BARU: Switch ke subtab tertentu
+function switchToSubTab(subtabName) {
+  console.log('🔄 Switching to subtab:', subtabName);
+  
+  // Cari di tab management yang aktif
+  const activeManagementTab = document.querySelector('.tab-content[data-tab="manajemen"].active');
+  if (!activeManagementTab) {
+    console.log('❌ Tab management tidak aktif');
+    return;
+  }
+  
+  const subtabBtns = activeManagementTab.querySelectorAll('.subtab-btn');
+  const subtabContents = activeManagementTab.querySelectorAll('.subtab-content');
+  
+  console.log('🔍 Found subtab buttons:', subtabBtns.length);
+  console.log('🔍 Found subtab contents:', subtabContents.length);
+  
+  // Update active button
+  subtabBtns.forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.dataset.subtab === subtabName) {
+      btn.classList.add('active');
+      console.log('✅ Activated button:', subtabName);
+    }
+  });
+  
+  // Show target content
+  subtabContents.forEach(content => {
+    content.classList.remove('active');
+    if (content.dataset.subtab === subtabName) {
+      content.classList.add('active');
+      console.log('✅ Activated content:', subtabName);
+    }
+  });
+}
+
+// ==================== MENU MANAGEMENT FUNCTIONS ====================
+
+// Load data untuk management menu dengan cache
+async function loadMenuManagement() {
+  try {
+    // Cek cache dulu
+    const cachedMenu = getCachedData('menuManagement');
+    if (cachedMenu) {
+      menuManagementData = cachedMenu;
+      renderMenuManagementList();
+      
+      if (kasirInfo.levelAkses === 'OWNER') {
+        await loadTokoForMenuManagement();
+      }
+      
+      setupMenuManagementFilter();
+      
+      // Setup filters setelah data menu loaded
+      setTimeout(() => {
+        setupLaporanFilters();
+        console.log('✅ Laporan filters setup after menu data loaded');
+      }, 100);
+      
+      return;
+    }
+
+    const data = await hybridFetch('/getMenuManagement', { 
+      idToko: kasirInfo.idToko,
+      levelAkses: kasirInfo.levelAkses
+    });
+    
+    if (data && data.success) {
+      menuManagementData = data.data || [];
+      setCachedData('menuManagement', menuManagementData);
+      renderMenuManagementList();
+      
+      if (kasirInfo.levelAkses === 'OWNER') {
+        await loadTokoForMenuManagement();
+      }
+      
+      setupMenuManagementFilter();
+      
+      // Setup filters setelah data menu loaded
+      setTimeout(() => {
+        setupLaporanFilters();
+        console.log('✅ Laporan filters setup after menu data loaded');
+      }, 100);
+      
+    } else {
+      menuManagementData = [];
+      renderMenuManagementList();
+    }
+  } catch (err) {
+    console.error('Error loadMenuManagement:', err);
+    menuManagementData = [];
+    renderMenuManagementList();
+  }
+}
+
+// Load toko untuk menu management
+async function loadTokoForMenuManagement() {
+  try {
+    const cachedToko = getCachedData('toko');
+    if (cachedToko) {
+      populateTokoDropdownForMenu(cachedToko);
+      return;
+    }
+
+    const data = await hybridFetch('/getToko', { 
+      levelAkses: kasirInfo.levelAkses
+    });
+    
+    if (data && data.success) {
+      populateTokoDropdownForMenu(data.data);
+    }
+  } catch (err) {
+    console.error('Error load toko for menu:', err);
+  }
+}
+
+// Populate dropdown toko untuk menu management
+function populateTokoDropdownForMenu(tokoData) {
+  const tokoSelect = document.getElementById('inputToko');
+  if (!tokoSelect) return;
+  
+  const defaultOptions = tokoSelect.innerHTML;
+  tokoSelect.innerHTML = defaultOptions;
+  
+  if (kasirInfo.levelAkses === 'OWNER' && tokoData && tokoData.length > 0) {
+    // HAPUS DUPLIKAT: Gunakan hanya toko unik
+    const uniqueToko = deduplicateTokoData(tokoData);
+    
+    uniqueToko.forEach(toko => {
+      const option = document.createElement('option');
+      option.value = toko.id_toko;
+      option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
+      tokoSelect.appendChild(option);
+    });
+  }
+}
+
+// Fungsi untuk deduplikasi data toko
+function deduplicateTokoData(tokoData) {
+  const uniqueToko = new Map();
+  
+  tokoData.forEach(toko => {
+    if (toko.status === 'Aktif' && toko.id_toko !== 'ALL') {
+      if (!uniqueToko.has(toko.id_toko)) {
+        uniqueToko.set(toko.id_toko, toko);
+      }
+    }
+  });
+  
+  return Array.from(uniqueToko.values());
+}
+
+// Setup filter toko untuk management menu
+function setupMenuManagementFilter() {
+  const searchContainer = document.querySelector('.daftar-menu .search-wrap');
+  if (!searchContainer) return;
+  
+  if (kasirInfo.levelAkses !== 'OWNER') return;
+  
+  let filterToko = document.getElementById('filterTokoMenuManagement');
+  
+  if (!filterToko) {
+    const filterGroup = document.createElement('div');
+    filterGroup.className = 'filter-group';
+    filterGroup.innerHTML = `
+      <select id="filterTokoMenuManagement" style="min-width: 150px;">
+        <option value="">Semua Toko</option>
+        <option value="ALL">🌍 Semua Toko</option>
+      </select>
+    `;
+    searchContainer.appendChild(filterGroup);
+    
+    filterToko = document.getElementById('filterTokoMenuManagement');
+    loadTokoForMenuFilter();
+    
+    filterToko.addEventListener('change', (e) => {
+      const searchInput = document.getElementById('searchMenuManagement');
+      filterMenuManagementData(searchInput ? searchInput.value : '', e.target.value);
+    });
+  }
+}
+
+// Load toko untuk filter menu management
+async function loadTokoForMenuFilter() {
+  try {
+    const cachedToko = getCachedData('toko');
+    if (cachedToko) {
+      const filterToko = document.getElementById('filterTokoMenuManagement');
+      if (filterToko) {
+        // HAPUS DUPLIKAT: Gunakan hanya toko unik
+        const uniqueToko = deduplicateTokoData(cachedToko);
+        
+        uniqueToko.forEach(toko => {
+          const option = document.createElement('option');
+          option.value = toko.id_toko;
+          option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
+          filterToko.appendChild(option);
+        });
+      }
+      return;
+    }
+
+    const data = await hybridFetch('/getToko', { 
+      levelAkses: kasirInfo.levelAkses
+    });
+    
+    if (data && data.success) {
+      const filterToko = document.getElementById('filterTokoMenuManagement');
+      if (filterToko) {
+        // HAPUS DUPLIKAT: Gunakan hanya toko unik
+        const uniqueToko = deduplicateTokoData(data.data);
+        
+        uniqueToko.forEach(toko => {
+          const option = document.createElement('option');
+          option.value = toko.id_toko;
+          option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
+          filterToko.appendChild(option);
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error load toko for filter:', err);
+  }
+}
+
+// Filter data menu management
+function filterMenuManagementData(searchTerm = '', tokoFilter = '') {
+  let filtered = menuManagementData;
+  
+  // Filter berdasarkan pencarian
+  if (searchTerm) {
+    const term = searchTerm.toLowerCase().trim();
+    filtered = filtered.filter(menu => 
+      menu.nama_menu.toLowerCase().includes(term) ||
+      menu.kategori.toLowerCase().includes(term) ||
+      menu.id_menu.toLowerCase().includes(term)
+    );
+  }
+  
+  // Filter toko yang KONSISTEN berdasarkan level akses
+  if (kasirInfo.levelAkses === 'OWNER') {
+    if (tokoFilter && tokoFilter !== 'ALL' && tokoFilter !== 'current') {
+      filtered = filtered.filter(menu => 
+        menu.id_toko === tokoFilter || menu.id_toko === 'ALL'
+      );
+    }
+  } else {
+    // ADMIN/KASIR: Hanya bisa lihat toko sendiri + ALL
+    filtered = filtered.filter(menu => 
+      menu.id_toko === kasirInfo.idToko || menu.id_toko === 'ALL'
+    );
+  }
+  
+  renderMenuManagementList(filtered);
+}
+
+// Render daftar menu dengan tampilkan STATUS
+function renderMenuManagementList(filteredData = menuManagementData) {
+  const tbody = document.getElementById('daftarMenuBody');
+  tbody.innerHTML = '';
+  
+  if (!filteredData || filteredData.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align:center;padding:20px;color:var(--muted)">
+          Tidak ada data menu
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
+  filteredData.forEach(menu => {
+    const tr = document.createElement('tr');
+    
+    // Tentukan class untuk stok
+    const stokClass = menu.stok <= 0 ? 'stok-danger' : (menu.stok < 10 ? 'stok-warning' : '');
+    
+    // Tentukan class untuk status
+    const statusClass = menu.status === 'Aktif' ? 'status-aktif' : 'status-nonaktif';
+    const statusIcon = menu.status === 'Aktif' ? '✅' : '⏸️';
+    
+    // Tampilan toko
+    let tokoDisplay = menu.id_toko;
+    if (menu.id_toko === 'ALL') {
+      tokoDisplay = '🌍 Semua Toko';
+    } else if (kasirInfo.levelAkses === 'OWNER') {
+      const tokoInfo = tokoManagementData.find(t => t.id_toko === menu.id_toko);
+      tokoDisplay = tokoInfo ? `${menu.id_toko} - ${tokoInfo.nama_toko}` : menu.id_toko;
+    } else if (kasirInfo.levelAkses === 'ADMIN') {
+      tokoDisplay = `${menu.id_toko} - ${kasirInfo.namaToko || menu.id_toko}`;
+    }
+    
+    tr.innerHTML = `
+      <td>${menu.id_menu}</td>
+      <td><strong>${menu.nama_menu}</strong></td>
+      <td>${menu.kategori}</td>
+      <td>Rp${formatRupiah(menu.harga)}</td>
+      <td class="${stokClass}">${menu.stok}</td>
+      <td><span class="${statusClass}">${statusIcon} ${menu.status}</span></td>
+      <td>${tokoDisplay}</td>
+      <td>
+        ${canEditMenu(menu) ? `<button class="btn-edit" data-id="${menu.id_menu}">✏️ Edit</button>` : ''}
+        ${canDeleteMenu(menu) ? `<button class="btn-delete" data-id="${menu.id_menu}">🗑️ Hapus</button>` : ''}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  
+  // Add event listeners untuk edit/delete buttons
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const menuId = e.target.getAttribute('data-id');
+      editMenu(menuId);
+    });
+  });
+  
+  document.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const menuId = e.target.getAttribute('data-id');
+      deleteMenu(menuId);
+    });
+  });
+}
+
+// Permission checks untuk menu
+function canEditMenu(menu) {
+  if (kasirInfo.levelAkses === 'OWNER') return true;
+  if (kasirInfo.levelAkses === 'ADMIN' && menu.id_toko === kasirInfo.idToko) return true;
+  return false;
+}
+
+function canDeleteMenu(menu) {
+  if (kasirInfo.levelAkses === 'OWNER') return true;
+  if (kasirInfo.levelAkses === 'ADMIN' && menu.id_toko === kasirInfo.idToko) return true;
+  return false;
+}
+
+// Cek duplikat nama menu
+function isMenuNameDuplicate(namaMenu, excludeId = null) {
+  return menuManagementData.some(menu => 
+    menu.nama_menu.toLowerCase() === namaMenu.toLowerCase() && 
+    menu.id_menu !== excludeId
+  );
+}
+
+// Edit menu dengan tampilkan STATUS di form
+function editMenu(menuId) {
+  console.log('✏️ Edit menu clicked:', menuId);
+  
+  const menu = menuManagementData.find(m => m.id_menu === menuId);
+  if (!menu) {
+    console.log('❌ Menu not found:', menuId);
+    return;
+  }
+  
+  editingMenuId = menuId;
+  
+  // Isi form dengan data menu
+  document.getElementById('inputNamaMenu').value = menu.nama_menu;
+  document.getElementById('inputKategori').value = menu.kategori;
+  document.getElementById('inputHarga').value = menu.harga;
+  document.getElementById('inputStok').value = menu.stok || 0;
+  
+  // Tampilkan STATUS di form
+  let statusSelect = document.getElementById('inputStatusMenu');
+  if (!statusSelect) {
+    // Buat dropdown status jika belum ada
+    const formGroup = document.createElement('div');
+    formGroup.className = 'form-group';
+    formGroup.innerHTML = `
+      <label for="inputStatusMenu">Status:</label>
+      <select id="inputStatusMenu">
+        <option value="Aktif">Aktif</option>
+        <option value="Nonaktif">Nonaktif</option>
+      </select>
+    `;
+    document.getElementById('inputStok').parentNode.after(formGroup);
+    statusSelect = document.getElementById('inputStatusMenu');
+  }
+  statusSelect.value = menu.status;
+  
+  // Set nilai toko
+  const tokoSelect = document.getElementById('inputToko');
+  if (tokoSelect) {
+    if (kasirInfo.levelAkses === 'OWNER') {
+      tokoSelect.value = menu.id_toko;
+    } else {
+      tokoSelect.value = 'current';
+    }
+  }
+  
+  // Update UI untuk mode edit
+  document.getElementById('btnSimpanMenu').textContent = '💾 Update Menu';
+  document.getElementById('btnBatalEdit').style.display = 'inline-block';
+  document.getElementById('menuIdDisplay').textContent = `Editing: ${menuId} (${menu.status})`;
+  
+  // PASTIKAN TAB MANAGEMENT AKTIF DULU
+  const managementTab = document.querySelector('.nav-tab[data-tab="manajemen"]');
+  if (managementTab && !managementTab.classList.contains('active')) {
+    console.log('⚠️ Management tab tidak aktif, switching...');
+    managementTab.click();
+  }
+  
+  // AUTO SWITCH KE SUBTAB FORM - dengan delay sedikit
+  setTimeout(() => {
+    console.log('🔄 Executing subtab switch...');
+    switchToSubTab('form-menu');
+  }, 100);
+  
+  console.log('✅ Edit menu setup completed');
+}
+
+// Clear form menu dengan reset STATUS
+function clearMenuForm() {
+  document.getElementById('inputNamaMenu').value = '';
+  document.getElementById('inputKategori').value = '';
+  document.getElementById('inputHarga').value = '';
+  document.getElementById('inputStok').value = '0';
+  
+  // Reset status ke Aktif
+  const statusSelect = document.getElementById('inputStatusMenu');
+  if (statusSelect) {
+    statusSelect.value = 'Aktif';
+  }
+  
+  // Set default toko berdasarkan level akses
+  const tokoSelect = document.getElementById('inputToko');
+  if (tokoSelect) {
+    if (kasirInfo.levelAkses === 'OWNER') {
+      tokoSelect.value = 'current';
+    } else {
+      tokoSelect.value = 'current';
+    }
+  }
+  
+  // Hapus pesan error duplikat
+  const errorMsg = document.getElementById('duplicateError');
+  if (errorMsg) errorMsg.remove();
+}
+
+function cancelEdit() {
+  editingMenuId = null;
+  clearMenuForm();
+  document.getElementById('btnSimpanMenu').textContent = '💾 Simpan Menu';
+  document.getElementById('btnBatalEdit').style.display = 'none';
+  document.getElementById('menuIdDisplay').textContent = '';
+  
+  // AUTO SWITCH KE SUBTAB DAFTAR
+  switchToSubTab('daftar-menu');
+}
+
+// Save menu dengan STATUS
+async function saveMenu() {
+  const namaMenu = document.getElementById('inputNamaMenu').value.trim();
+  const kategori = document.getElementById('inputKategori').value;
+  const harga = parseInt(document.getElementById('inputHarga').value) || 0;
+  const stok = parseInt(document.getElementById('inputStok').value) || 0;
+  const toko = document.getElementById('inputToko').value;
+  const statusSelect = document.getElementById('inputStatusMenu');
+  const status = statusSelect ? statusSelect.value : 'Aktif';
+  
+  const idToko = toko === 'current' ? kasirInfo.idToko : toko;
+  
+  // Validasi
+  if (!namaMenu) {
+    showNotification('Nama menu harus diisi', 'warning');
+    return;
+  }
+  if (!kategori) {
+    showNotification('Kategori harus dipilih', 'warning');
+    return;
+  }
+  if (harga <= 0) {
+    showNotification('Harga harus lebih dari 0', 'warning');
+    return;
+  }
+  
+  // Cek duplikat nama menu
+  if (isMenuNameDuplicate(namaMenu, editingMenuId)) {
+    showNotification('❌ Nama menu sudah ada! Gunakan nama yang berbeda.', 'error');
+    return;
+  }
+  
+  try {
+    const action = editingMenuId ? 'updateMenu' : 'createMenu';
+    const payload = {
+      idToko: kasirInfo.idToko,
+      namaMenu: namaMenu,
+      kategori: kategori,
+      harga: harga,
+      stok: stok,
+      status: status,
+      targetToko: idToko,
+      levelAkses: kasirInfo.levelAkses
+    };
+    
+    if (editingMenuId) {
+      payload.idMenu = editingMenuId;
+    }
+    
+    const data = await hybridFetch(`/${action}`, payload);
+    
+    if (data && data.success) {
+      showNotification(editingMenuId ? 'Menu berhasil diupdate' : 'Menu berhasil ditambahkan', 'success');
+      clearMenuForm();
+      cancelEdit();
+      clearCache();
+      loadMenuManagement();
+      loadMenu();
+      
+      // AUTO SWITCH KE SUBTAB DAFTAR SETELAH SIMPAN
+      switchToSubTab('daftar-menu');
+    } else {
+      showNotification('Gagal menyimpan menu: ' + (data.message || 'Unknown error'), 'error');
+    }
+  } catch (err) {
+    showNotification('Gagal menyimpan menu: ' + err.message, 'error');
+  }
+}
+
+// Delete menu PERMANEN
+async function deleteMenu(menuId) {
+  if (!confirm(`Apakah Anda yakin ingin MENGHAPUS PERMANEN menu ${menuId}?`)) {
+    return;
+  }
+  
+  try {
+    const data = await hybridFetch('/deleteMenu', {
+      idMenu: menuId,
+      idToko: kasirInfo.idToko,
+      levelAkses: kasirInfo.levelAkses,
+      permanent: true
+    });
+    
+    if (data && data.success) {
+      showNotification('Menu berhasil dihapus PERMANEN', 'success');
+      clearCache();
+      loadMenuManagement();
+      loadMenu();
+    } else {
+      showNotification('Gagal menghapus menu: ' + (data.message || 'Unknown error'), 'error');
+    }
+  } catch (err) {
+    showNotification('Gagal menghapus menu: ' + err.message, 'error');
+  }
+}
+
+// Search menu di management dengan debounce
+const setupMenuManagementSearch = debounce(function() {
+  const searchInput = document.getElementById('searchMenuManagement');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase().trim();
+      const filterToko = document.getElementById('filterTokoMenuManagement');
+      const tokoFilter = filterToko ? filterToko.value : '';
+      
+      filterMenuManagementData(searchTerm, tokoFilter);
+    });
+  }
+}, 300);
+
+// ==================== TRANSAKSI FUNCTIONS ====================
+
+// Load menu dengan cache
+async function loadMenu(){
+  const spinner = document.getElementById('menuLoading');
+  if (spinner) spinner.style.display = 'flex';
+  
+  try {
+    // Cek cache dulu
+    const cachedMenu = getCachedData('menu');
+    if (cachedMenu) {
+      menuData = cachedMenu;
+      filteredMenu = [...menuData];
+      currentPage = 1;
+      renderMenuList();
+      if (spinner) spinner.style.display = 'none';
+      return;
+    }
+
+    const data = await hybridFetch('/getMenu', { 
+      idToko: kasirInfo.idToko,
+      levelAkses: kasirInfo.levelAkses
+    });
+    
+    if (data && data.success && Array.isArray(data.data)) {
+      menuData = data.data.map((m, index) => {
+        return {
+          id: m.id,
+          nama: m.nama,
+          harga: m.harga,
+          kategori: m.kategori,
+          stok: m.stok || 0
+        };
+      });
+      
+      setCachedData('menu', menuData);
+      filteredMenu = [...menuData];
+      currentPage = 1;
+      renderMenuList();
+    } else {
+      menuData = [];
+      filteredMenu = [];
+      renderMenuList([]);
+    }
+  } catch(err) {
+    menuData = [];
+    filteredMenu = [];
+    renderMenuList([]);
+  } finally {
+    if (spinner) spinner.style.display = 'none';
+  }
+}
+
+// Render menu dengan virtual DOM
+function renderMenuList(items = filteredMenu){
+  const list = document.getElementById('menuList');
+  if (!list) return;
+  
+  list.innerHTML = '';
+  
+  if (!items || items.length === 0) {
+    list.innerHTML = "<div style='color:var(--muted); text-align:center; padding:10px; grid-column:1/-1; font-size:0.7rem;'>Tidak ada menu</div>";
+    updatePaginationInfo(0);
+    return;
+  }
+
+  const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const itemsToShow = items.slice(startIndex, endIndex);
+
+  const fragment = document.createDocumentFragment();
+
+  itemsToShow.forEach(m => {
+    const btn = document.createElement('button');
+    const hargaNum = m.harga;
+    const stok = m.stok || 0;
+    
+    let stokClass = '';
+    let stokText = '';
+    if (stok <= 0) {
+      stokClass = 'stok-habis';
+      stokText = '❌ Habis';
+    } else if (stok < 5) {
+      stokClass = 'stok-sedikit';
+      stokText = `⚠️ ${stok}`;
+    } else {
+      stokText = `✅ ${stok}`;
+    }
+    
+    btn.className = `menu-item ${stokClass}`;
+    btn.innerHTML = `
+      <div class="nama">${m.nama}</div>
+      <div class="harga">Rp${formatRupiah(hargaNum)}</div>
+      <div class="stok ${stokClass}">${stokText}</div>
+    `;
+    
+    btn.setAttribute('data-id', m.id);
+    btn.setAttribute('data-stok', stok);
+    
+    if (stok <= 0) {
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.style.cursor = 'not-allowed';
+    } else {
+      btn.onclick = () => tambahMenu({ 
+        id: m.id,
+        nama: m.nama, 
+        harga: hargaNum,
+        stok: stok
+      });
+    }
+    
+    fragment.appendChild(btn);
+  });
+
+  list.appendChild(fragment);
+  updatePaginationInfo(items.length, totalPages);
+}
+
+function updatePaginationInfo(totalItems, totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE)) {
+  const pageInfo = document.getElementById('pageInfo');
+  const prevBtn = document.getElementById('prevPage');
+  const nextBtn = document.getElementById('nextPage');
+  
+  if (pageInfo) pageInfo.textContent = `Hal ${currentPage}/${totalPages}`;
+  if (prevBtn) prevBtn.disabled = currentPage === 1;
+  if (nextBtn) nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+}
+
+function goToPage(page) {
+  currentPage = page;
+  renderMenuList();
+}
+
+// Filter pencarian dengan debounce
+const filterMenuByText = debounce(function(text){
+  if (!text) {
+    filteredMenu = [...menuData];
+    currentPage = 1;
+    renderMenuList();
+    return;
+  }
+  
+  const q = text.trim().toLowerCase();
+  filteredMenu = menuData.filter(m => {
+    return (m.nama && m.nama.toLowerCase().includes(q)) || 
+           (m.kategori && m.kategori.toLowerCase().includes(q));
+  });
+  
+  currentPage = 1;
+  renderMenuList();
+}, 300);
+
+// Tambah menu dengan validasi stok
+function tambahMenu(menu){
+  const stokTersedia = menu.stok || 0;
+  const existingIndex = transaksi.findIndex(t => t.id === menu.id);
+  
+  if (existingIndex !== -1) {
+    const jumlahSekarang = transaksi[existingIndex].jumlah;
+    if (jumlahSekarang + 1 > stokTersedia) {
+      showNotification(`❌ Stok tidak cukup! Stok ${menu.nama} hanya ${stokTersedia}`, 'warning');
+      return;
+    }
+    
+    transaksi[existingIndex].jumlah += 1;
+    transaksi[existingIndex].subtotal = transaksi[existingIndex].jumlah * transaksi[existingIndex].harga;
+  } else {
+    if (stokTersedia < 1) {
+      showNotification(`❌ Stok ${menu.nama} habis!`, 'warning');
+      return;
+    }
+    
+    transaksi.push({ 
+      id: menu.id,
+      nama: menu.nama, 
+      harga: menu.harga,
+      jumlah: 1, 
+      subtotal: menu.harga,
+      stok: stokTersedia
+    });
+  }
+  
+  renderTransaksi();
+  
+  // SET FOCUS KE KOLOM JUMLAH setelah tambah menu
+  setTimeout(() => {
+    const inputs = document.querySelectorAll(".jumlah-input");
+    const targetIndex = existingIndex !== -1 ? existingIndex : transaksi.length - 1;
+    
+    if (inputs[targetIndex]) {
+      inputs[targetIndex].focus();
+      inputs[targetIndex].select();
+    }
+  }, 100);
+}
+
+// Render transaksi dengan pertahankan fokus
+function renderTransaksi(){
+  const tbody = document.querySelector('#tblTransaksi tbody');
+  if (!tbody) return;
+  
+  // SIMPAN ELEMENT YANG SEDANG FOCUS SEBELUM RENDER
+  const activeElement = document.activeElement;
+  let preserveFocus = null;
+  
+  if (activeElement && activeElement.classList.contains('jumlah-input')) {
+    preserveFocus = activeElement.getAttribute('data-index');
+  }
+  
+  tbody.innerHTML = '';
+  let total = 0;
+  
+  const fragment = document.createDocumentFragment();
+  
+  transaksi.forEach((item, i) => {
+    total += item.subtotal;
+    const stokInfo = item.stok ? ` (Stok: ${item.stok})` : '';
+    const stokWarning = item.jumlah > item.stok ? ' ❌ Melebihi stok!' : '';
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <strong>${item.nama}</strong>${stokInfo}
+        ${stokWarning}
+      </td>
+      <td>Rp${formatRupiah(item.harga)}</td>
+      <td>
+        <input type="number" min="0" value="${item.jumlah}" data-index="${i}" class="jumlah-input">
+      </td>
+      <td><strong class="subtotal-display" data-index="${i}">Rp${formatRupiah(item.subtotal)}</strong></td>
+      <td><button class="hapus-btn" data-index="${i}" title="Hapus item">❌</button></td>
+    `;
+    fragment.appendChild(tr);
+  });
+
+  tbody.appendChild(fragment);
+  
+  // Update total display
+  document.getElementById('totalHarga').textContent = formatRupiah(total);
+  
+  // AUTO-UPDATE CASH INPUT ke nilai total (hanya single payment)
+  if (!isMultiplePayment) {
+    const cashInput = document.getElementById('cashInput');
+    cashInput.value = formatRupiah(total);
+  }
+  
+  hitungKembali();
+  
+  // RESTORE FOCUS JIKA SEDANG INPUT
+  if (preserveFocus !== null) {
+    setTimeout(() => {
+      const inputs = document.querySelectorAll(".jumlah-input");
+      const targetIndex = parseInt(preserveFocus);
+      if (inputs[targetIndex]) {
+        inputs[targetIndex].focus();
+        inputs[targetIndex].select();
+      }
+    }, 10);
+  }
+}
+
+// Hitung kembalian
+function hitungKembali() {
+  if (isMultiplePayment) {
+    // Untuk multiple payment, kembalian sudah dihitung di updateMultiplePaymentDisplay
+    return;
+  }
+  
+  // Untuk single payment (original logic)
+  const cashInput = document.getElementById('cashInput');
+  const bayar = parseNumberFromString(cashInput.value);
+  const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
+  const kembali = bayar - total;
+  
+  document.getElementById('uangKembali').textContent = formatRupiah(kembali > 0 ? kembali : 0);
+}
+
+// Setup event delegation untuk transaksi
+function setupTransactionEventDelegation() {
+  const tbody = document.querySelector('#tblTransaksi tbody');
+  if (!tbody) return;
+  
+  // FUNGSI BARU: Update subtotal secara real-time
+  function updateSubtotalRealTime(input, index, newJumlah) {
+    const item = transaksi[index];
+    
+    // Validasi stok
+    if (newJumlah > item.stok) {
+      // Tampilkan warning
+      const stokWarning = document.createElement('span');
+      stokWarning.className = 'stok-warning-real-time';
+      stokWarning.textContent = ` ❌ Max: ${item.stok}`;
+      stokWarning.style.color = 'var(--danger)';
+      stokWarning.style.fontSize = '0.7rem';
+      
+      // Hapus warning sebelumnya
+      const existingWarning = input.parentNode.querySelector('.stok-warning-real-time');
+      if (existingWarning) existingWarning.remove();
+      
+      input.parentNode.appendChild(stokWarning);
+    } else {
+      // Hapus warning jika stok cukup
+      const existingWarning = input.parentNode.querySelector('.stok-warning-real-time');
+      if (existingWarning) existingWarning.remove();
+    }
+    
+    // Update data transaksi
+    const jumlahValid = Math.max(0, newJumlah);
+    transaksi[index].jumlah = jumlahValid;
+    transaksi[index].subtotal = transaksi[index].jumlah * transaksi[index].harga;
+    
+    // UPDATE SUBTOTAL DISPLAY SECARA LANGSUNG
+    const subtotalDisplay = document.querySelector(`.subtotal-display[data-index="${index}"]`);
+    if (subtotalDisplay) {
+      subtotalDisplay.textContent = `Rp${formatRupiah(transaksi[index].subtotal)}`;
+    }
+    
+    // UPDATE TOTAL & CASH INPUT SECARA LANGSUNG
+    updateTotalOnly();
+  }
+  
+  // EVENT: Input real-time (setiap ketikan)
+  tbody.addEventListener('input', function(e) {
+    if (e.target.classList.contains('jumlah-input')) {
+      const index = parseInt(e.target.getAttribute('data-index'));
+      if (isNaN(index) || index < 0 || index >= transaksi.length) return;
+      
+      const newJumlah = parseInt(e.target.value) || 0;
+      
+      // UPDATE REAL-TIME: Langsung proses tanpa debounce
+      updateSubtotalRealTime(e.target, index, newJumlah);
+    }
+  });
+  
+  // EVENT: Blur (final validation saat keluar dari input)
+  tbody.addEventListener('blur', function(e) {
+    if (e.target.classList.contains('jumlah-input')) {
+      const index = parseInt(e.target.getAttribute('data-index'));
+      if (isNaN(index) || index < 0 || index >= transaksi.length) return;
+      
+      const newJumlah = parseInt(e.target.value) || 0;
+      const item = transaksi[index];
+      
+      // Final validation saat keluar dari input
+      if (newJumlah > item.stok) {
+        // Reset ke stok maksimum
+        e.target.value = item.stok;
+        transaksi[index].jumlah = item.stok;
+        transaksi[index].subtotal = item.stok * item.harga;
+        
+        // Update display
+        const subtotalDisplay = document.querySelector(`.subtotal-display[data-index="${index}"]`);
+        if (subtotalDisplay) {
+          subtotalDisplay.textContent = `Rp${formatRupiah(transaksi[index].subtotal)}`;
+        }
+        
+        updateTotalOnly();
+        
+        // Hapus warning
+        const existingWarning = e.target.parentNode.querySelector('.stok-warning-real-time');
+        if (existingWarning) existingWarning.remove();
+      }
+      
+      // Jika jumlah 0, hapus item setelah blur
+      if (newJumlah <= 0) {
+        setTimeout(() => {
+          transaksi.splice(index, 1);
+          renderTransaksi(); // Render ulang karena struktur berubah
+        }, 100);
+      }
+    }
+  });
+  
+  // EVENT: Keydown untuk Enter (pindah ke cash input)
+  tbody.addEventListener('keydown', function(e) {
+    if (e.target.classList.contains('jumlah-input')) {
+      const input = e.target;
+      const index = parseInt(input.getAttribute('data-index'));
+      
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        
+        const newJumlah = parseInt(input.value) || 0;
+        const item = transaksi[index];
+        
+        // Validasi stok saat Enter
+        if (newJumlah > item.stok) {
+          showNotification(`❌ Jumlah melebihi stok! Stok ${item.nama} hanya ${item.stok}`, 'warning');
+          input.value = item.stok;
+          updateSubtotalRealTime(input, index, item.stok);
+          input.select();
+          return;
+        }
+        
+        // Jika jumlah 0, hapus item
+        if (newJumlah <= 0) {
+          transaksi.splice(index, 1);
+          renderTransaksi();
+        } else {
+          // Update data dan tampilan
+          updateSubtotalRealTime(input, index, newJumlah);
+        }
+        
+        // SET FOCUS KE CASH INPUT setelah Enter
+        setTimeout(() => {
+          const cashInput = document.getElementById('cashInput');
+          if (cashInput) {
+            cashInput.focus();
+            cashInput.select();
+          }
+        }, 50);
+      }
+    }
+  });
+  
+  // EVENT: Hapus item
+  tbody.addEventListener('click', function(e) {
+    if (e.target.classList.contains('hapus-btn')) {
+      const index = parseInt(e.target.getAttribute('data-index'));
+      if (!isNaN(index) && index >= 0 && index < transaksi.length) {
+        transaksi.splice(index, 1);
+        renderTransaksi(); // Render ulang karena ada perubahan struktur
+      }
+    }
+  });
+  
+  // EVENT: Select text saat focus
+  tbody.addEventListener('focusin', function(e) {
+    if (e.target.classList.contains('jumlah-input')) {
+      setTimeout(() => e.target.select(), 10);
+    }
+  });
+}
+
+// ==================== LAPORAN FUNCTIONS MODERN ====================
+
+// Setup filter laporan berdasarkan level akses
+function setupLaporanFilters() {
+  // SAFETY CHECK: Pastikan kasirInfo sudah ada
+  if (!kasirInfo || !kasirInfo.levelAkses) {
+    console.log('⚠️ setupLaporanFilters: kasirInfo belum ready, skipping...');
+    return;
+  }
+  
+  const filterTokoGroup = document.getElementById('filterTokoGroup');
+  const filterTokoSelect = document.getElementById('filterTokoLaporan');
+  const filterMenuSelect = document.getElementById('filterMenu');
+  
+  console.log('🔧 Setting up laporan filters for:', kasirInfo.levelAkses);
+  console.log('📊 Available data - Toko:', tokoManagementData?.length, 'Menu:', menuManagementData?.length);
+  
+  // PERBAIKAN: HENTIKAN MULTIPLE SETUP
+  if (filterTokoSelect && filterTokoSelect.hasAttribute('data-setup-done')) {
+    console.log('✅ Filter toko sudah di-setup, skipping...');
+    return;
+  }
+  
+  // Tampilkan filter toko hanya untuk OWNER
+  if (kasirInfo.levelAkses === 'OWNER') {
+    if (filterTokoGroup) {
+      filterTokoGroup.style.display = 'flex';
+      console.log('✅ Filter toko ditampilkan untuk OWNER');
+    }
+    
+    // Load data toko untuk filter - DENGAN DEDUPLIKASI
+    if (filterTokoSelect) {
+      // PERBAIKAN: CLEAR DULU SEBELUM ISI
+      filterTokoSelect.innerHTML = '<option value="">Semua Toko</option>';
+      
+      if (tokoManagementData && tokoManagementData.length > 0) {
+        // PERBAIKAN: GUNAKAN DEDUPLIKASI
+        const uniqueTokoMap = new Map();
+        
+        tokoManagementData.forEach(toko => {
+          if (toko.status === 'Aktif') {
+            if (!uniqueTokoMap.has(toko.id_toko)) {
+              uniqueTokoMap.set(toko.id_toko, toko);
+            }
+          }
+        });
+        
+        const uniqueToko = Array.from(uniqueTokoMap.values());
+        
+        uniqueToko.forEach(toko => {
+          const option = document.createElement('option');
+          option.value = toko.id_toko;
+          option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
+          filterTokoSelect.appendChild(option);
+        });
+        
+        console.log('✅ Dropdown toko diisi:', uniqueToko.length, 'toko UNIK');
+        
+        // TANDAI SUDAH DI-SETUP
+        filterTokoSelect.setAttribute('data-setup-done', 'true');
+        
+      } else {
+        console.log('⚠️ Toko data not ready for filter');
+      }
+    }
+  } else {
+    if (filterTokoGroup) {
+      filterTokoGroup.style.display = 'none';
+      console.log('❌ Filter toko disembunyikan untuk level:', kasirInfo.levelAkses);
+    }
+  }
+  
+  // Load data menu untuk filter - DENGAN DEDUPLIKASI JUGA
+  if (filterMenuSelect) {
+    // PERBAIKAN: CLEAR DULU SEBELUM ISI
+    filterMenuSelect.innerHTML = '<option value="">Semua Menu</option>';
+    
+    if (menuManagementData && menuManagementData.length > 0) {
+      const uniqueMenus = [...new Set(menuManagementData
+        .filter(menu => menu.status === 'Aktif')
+        .map(menu => menu.nama_menu))];
+      
+      uniqueMenus.forEach(menu => {
+        const option = document.createElement('option');
+        option.value = menu;
+        option.textContent = menu;
+        filterMenuSelect.appendChild(option);
+      });
+      
+      console.log('✅ Dropdown menu diisi:', uniqueMenus.length, 'menu UNIK');
+    } else {
+      console.log('⚠️ Menu data not ready for filter');
+    }
+  }
+}
+
+// Setup filter toggle dengan CSS yang benar
+function setupFilterToggle() {
+  const btnFilterToggle = document.getElementById('btnFilterToggle');
+  const filterContent = document.getElementById('filterContent');
+  
+  if (btnFilterToggle && filterContent) {
+    // Set initial state - visible
+    filterContent.style.display = 'block';
+    btnFilterToggle.classList.add('rotated');
+    
+    btnFilterToggle.addEventListener('click', () => {
+      const isVisible = filterContent.style.display !== 'none';
+      filterContent.style.display = isVisible ? 'none' : 'block';
+      btnFilterToggle.classList.toggle('rotated', !isVisible);
+      btnFilterToggle.textContent = isVisible ? '▶' : '▼';
+    });
+  }
+}
+
+// Setup table toggle
+function setupTableToggle() {
+  const btnToggleTable = document.getElementById('btnToggleTable');
+  const tableContainer = document.getElementById('tableContainer');
+  const tableIcon = btnToggleTable?.querySelector('.table-icon');
+  const tableText = btnToggleTable?.querySelector('.table-text');
+  
+  if (btnToggleTable && tableContainer) {
+    // Set initial state - hidden
+    tableContainer.style.display = 'none';
+    tableIcon.textContent = '⬇️';
+    tableText.textContent = 'Tampilkan Tabel';
+    
+    btnToggleTable.addEventListener('click', () => {
+      const isVisible = tableContainer.style.display !== 'none';
+      tableContainer.style.display = isVisible ? 'none' : 'block';
+      tableIcon.textContent = isVisible ? '⬇️' : '⬆️';
+      tableText.textContent = isVisible ? 'Tampilkan Tabel' : 'Sembunyikan Tabel';
+    });
+  }
+}
+
+// Load laporan dengan ANALITIK ITEM LARIS
+async function loadLaporanModern() {
+  try {
+    console.log('🚀 Memulai loadLaporanModern...');
+    
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    const filterToko = document.getElementById('filterTokoLaporan')?.value || '';
+    const filterMenu = document.getElementById('filterMenu')?.value || '';
+    
+    console.log('📊 Filter laporan:', { 
+      startDate, 
+      endDate, 
+      filterToko, 
+      filterMenu,
+      levelAkses: kasirInfo?.levelAkses,
+      idToko: kasirInfo?.idToko 
+    });
+    
+    // Validasi kasirInfo
+    if (!kasirInfo || !kasirInfo.idToko) {
+      showNotification('❌ Silakan login ulang! Session mungkin telah habis.', 'error');
+      return;
+    }
+    
+    // Update period text
+    const periodText = document.getElementById('laporanPeriodText');
+    if (periodText) {
+      const startText = startDate || 'Semua';
+      const endText = endDate || 'Semua';
+      periodText.textContent = `Periode: ${startText} s/d ${endText}`;
+    }
+    
+    // Show loading state
+    const topItemsList = document.getElementById('topItemsList');
+    const categoriesChart = document.getElementById('categoriesChart');
+    const btnLoadLaporan = document.getElementById('btnLoadLaporan');
+    
+    if (btnLoadLaporan) {
+      btnLoadLaporan.disabled = true;
+      btnLoadLaporan.innerHTML = '<span class="btn-icon">⏳</span> Memuat...';
+    }
+    
+    if (topItemsList) topItemsList.innerHTML = '<div class="loading-analytics">⏳ Memuat data...</div>';
+    if (categoriesChart) categoriesChart.innerHTML = '<div class="loading-analytics">⏳ Memuat data...</div>';
+    
+    // Prepare request data
+    const requestData = {
+      startDate: startDate,
+      endDate: endDate,
+      idToko: kasirInfo.idToko,
+      levelAkses: kasirInfo.levelAkses,
+      username: kasirInfo.username,
+      filterToko: filterToko,
+      filterMenu: filterMenu
+    };
+    
+    console.log('📨 Request data:', requestData);
+    
+    const data = await hybridFetch('/getLaporan', requestData);
+    
+    console.log('📈 Response laporan:', data);
+    
+    if (data && data.success) {
+      laporanData = data.data || [];
+      
+      // Render summary modern
+      renderSummaryModern(data.summary);
+      
+      // Render analytics modern
+      if (data.analytics) {
+        renderLaporanAnalyticsModern(data.analytics);
+      } else {
+        console.warn('⚠️ Tidak ada data analytics');
+        if (topItemsList) topItemsList.innerHTML = '<div class="loading-analytics">📊 Tidak ada data analitik</div>';
+        if (categoriesChart) categoriesChart.innerHTML = '<div class="loading-analytics'>📊 Tidak ada data analitik</div>';
+      }
+      
+      // Render table
+      renderLaporanTableModern(laporanData);
+      
+      showNotification('Laporan berhasil dimuat', 'success');
+      console.log('✅ Laporan berhasil dimuat:', laporanData.length, 'records');
+      
+    } else {
+      const errorMsg = data?.message || 'Unknown error';
+      console.error('❌ Gagal memuat laporan:', errorMsg);
+      showNotification('Gagal memuat laporan: ' + errorMsg, 'error');
+    }
+  } catch (err) {
+    console.error('❌ Error loadLaporan:', err);
+    
+    // Show user-friendly error message
+    const errorMessage = err.message.includes('Failed to fetch') 
+      ? 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.'
+      : err.message;
+    
+    showNotification('Gagal memuat laporan: ' + errorMessage, 'error');
+    
+    // Reset UI on error
+    resetLaporanUI();
+  } finally {
+    // Reset button state
+    const btnLoadLaporan = document.getElementById('btnLoadLaporan');
+    if (btnLoadLaporan) {
+      btnLoadLaporan.disabled = false;
+      btnLoadLaporan.innerHTML = '<span class="btn-icon">📥</span> Muat Laporan';
+    }
+  }
+}
+
+// Function untuk render analytics laporan yang LENGKAP
+function renderLaporanAnalyticsModern(analytics) {
+  const topItemsList = document.getElementById('topItemsList');
+  const categoriesChart = document.getElementById('categoriesChart');
+  
+  if (!topItemsList || !categoriesChart) return;
+  
+  // Render top items
+  if (analytics.topItems && analytics.topItems.length > 0) {
+    let topItemsHTML = '';
+    analytics.topItems.slice(0, 5).forEach((item, index) => {
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '📦';
+      topItemsHTML += `
+        <div class="top-item">
+          <span class="item-rank">${medal}</span>
+          <span class="item-name">${item.nama}</span>
+          <span class="item-sales">${item.total_terjual}x</span>
+        </div>
+      `;
+    });
+    topItemsList.innerHTML = topItemsHTML;
+  } else {
+    topItemsList.innerHTML = '<div class="loading-analytics">Tidak ada data penjualan item</div>';
+  }
+  
+  // Render categories chart - DENGAN FALLBACK
+  if (analytics.topCategories && analytics.topCategories.length > 0) {
+    const maxSales = Math.max(...analytics.topCategories.map(cat => cat.total_terjual));
+    
+    let categoriesHTML = '';
+    analytics.topCategories.slice(0, 6).forEach(category => {
+      const percentage = maxSales > 0 ? (category.total_terjual / maxSales) * 100 : 0;
+      categoriesHTML += `
+        <div class="category-bar">
+          <span class="category-name">${category.kategori}</span>
+          <div class="category-bar-inner">
+            <div class="category-bar-fill" style="width: ${percentage}%"></div>
+          </div>
+          <span class="category-count">${category.total_terjual}</span>
+        </div>
+      `;
+    });
+    categoriesChart.innerHTML = categoriesHTML;
+  } else {
+    // Fallback: Tampilkan pesan bahwa data kategori tidak tersedia
+    categoriesChart.innerHTML = '<div class="loading-analytics">📊 Data kategori tidak tersedia</div>';
+  }
+}
+
+// Render summary modern
+function renderSummaryModern(summary) {
+  const summaryContainer = document.getElementById('laporanSummary');
+  if (!summaryContainer) return;
+  
+  if (!summary) {
+    summaryContainer.innerHTML = '';
+    return;
+  }
+  
+  summaryContainer.innerHTML = `
+    <div class="summary-card-modern">
+      <h3>🛒 Total Transaksi</h3>
+      <div class="value">${summary.totalTransaksi || 0}</div>
+    </div>
+    <div class="summary-card-modern">
+      <h3>💰 Total Pendapatan</h3>
+      <div class="value">Rp${formatRupiah(summary.totalPendapatan || 0)}</div>
+    </div>
+    <div class="summary-card-modern">
+      <h3>💵 Total Bayar</h3>
+      <div class="value">Rp${formatRupiah(summary.totalBayar || 0)}</div>
+    </div>
+    <div class="summary-card-modern">
+      <h3>🔄 Total Kembali</h3>
+      <div class="value">Rp${formatRupiah(summary.totalKembali || 0)}</div>
+    </div>
+  `;
+}
+
+// Render table modern yang sesuai dengan struktur data
+function renderLaporanTableModern(data) {
+  const tbody = document.getElementById('laporanBody');
+  if (!tbody) return;
+  
+  if (!data || data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Tidak ada data transaksi</td></tr>';
+    return;
+  }
+  
+  let tableHTML = '';
+  data.forEach(item => {
+    const menu = item.item || '-';
+    const qty = item.jumlah || 1;
+    const tanggal = item.tanggal ? new Date(item.tanggal).toLocaleDateString('id-ID') : '-';
+    
+    tableHTML += `
+      <tr>
+        <td>${tanggal}</td>
+        <td>${item.id_transaksi || ''}</td>
+        <td>${menu}</td>
+        <td style="text-align:center">${qty}</td>
+        <td>Rp${formatRupiah(item.total || 0)}</td>
+        <td>${item.kasir || ''}</td>
+      </tr>
+    `;
+  });
+  
+  tbody.innerHTML = tableHTML;
+}
+
+// Reset UI laporan
+function resetLaporanUI() {
+  laporanData = [];
+  renderSummaryModern(null);
+  
+  const topItemsList = document.getElementById('topItemsList');
+  const categoriesChart = document.getElementById('categoriesChart');
+  if (topItemsList) topItemsList.innerHTML = '<div class="loading-analytics">❌ Gagal memuat data</div>';
+  if (categoriesChart) categoriesChart.innerHTML = '<div class="loading-analytics'>❌ Gagal memuat data</div>';
+  
+  renderLaporanTableModern([]);
+}
+
+// Reset filter laporan
+function resetFilterLaporan() {
+  document.getElementById('startDate').value = '';
+  document.getElementById('endDate').value = '';
+  document.getElementById('filterMenu').value = '';
+  
+  // Reset filter toko hanya untuk OWNER
+  if (kasirInfo.levelAkses === 'OWNER') {
+    const filterToko = document.getElementById('filterTokoLaporan');
+    if (filterToko) filterToko.value = '';
+  }
+  
+  laporanData = [];
+  const tbody = document.getElementById('laporanBody');
+  if (tbody) tbody.innerHTML = '';
+  
+  const summaryContainer = document.getElementById('laporanSummary');
+  if (summaryContainer) summaryContainer.innerHTML = '';
+  
+  const topItemsList = document.getElementById('topItemsList');
+  if (topItemsList) topItemsList.innerHTML = '<div class="loading-analytics">Memuat data...</div>';
+  
+  const categoriesChart = document.getElementById('categoriesChart');
+  if (categoriesChart) categoriesChart.innerHTML = '<div class="loading-analytics">Memuat data...</div>';
+}
+
+// Export laporan PDF
+function exportLaporanPDF() {
+  if (laporanData.length === 0) {
+    showNotification('Tidak ada data laporan untuk di-export', 'warning');
+    return;
+  }
+
+  const printWindow = window.open('', '_blank');
+  const today = new Date().toLocaleDateString('id-ID');
+  
+  let tableRows = '';
+  laporanData.forEach(item => {
+    tableRows += `
+      <tr>
+        <td>${item.tanggal || ''}</td>
+        <td>${item.id_transaksi || ''}</td>
+        <td>${item.kasir || ''}</td>
+        <td>${item.item || ''}</td>
+        <td>${item.jumlah || ''}</td>
+        <td>Rp${formatRupiah(item.total || 0)}</td>
+      </tr>
+    `;
+  });
+
+  const totalPendapatan = laporanData.reduce((sum, item) => sum + (item.total || 0), 0);
+  
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Laporan Transaksi</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
+        h2 { color: #333; text-align: center; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #000; padding: 6px; text-align: left; }
+        th { background-color: #f0f0f0; }
+        .summary { margin: 15px 0; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; }
+        @media print {
+          body { margin: 0; }
+        }
+      </style>
+    </head>
+    <body>
+      <h2>Laporan Transaksi - ${kasirInfo.namaToko || 'TOKO'}</h2>
+      <p><strong>Tanggal Cetak:</strong> ${today}</p>
+      <p><strong>Periode:</strong> ${document.getElementById('startDate').value || 'Semua'} s/d ${document.getElementById('endDate').value || 'Semua'}</p>
+      
+      <div class="summary">
+        <strong>Ringkasan:</strong><br>
+        Total Transaksi: ${laporanData.length}<br>
+        Total Pendapatan: Rp${formatRupiah(totalPendapatan)}
+      </div>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>ID Transaksi</th>
+            <th>Kasir</th>
+            <th>Item</th>
+            <th>Qty</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `);
+  
+  printWindow.document.close();
+  
+  setTimeout(() => {
+    printWindow.print();
+  }, 500);
+}
+
+// ==================== PRINT STRUK FUNCTIONS ====================
+
+// 🔥 PERBAIKAN: printStruk dengan multiple payment support
+function printStruk() {
+  console.log('🚀 printStruk() dipanggil');
+  
+  const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
+  let bayar, kembali, paymentBreakdown = [];
+  
+  if (isMultiplePayment) {
+    // Multiple payment logic
+    bayar = calculateTotalPaid();
+    kembali = bayar - total;
+    
+    // Siapkan breakdown payment untuk struk
+    Object.keys(paymentMethods).forEach(method => {
+      if (paymentMethods[method] > 0) {
+        const methodNames = {
+          tunai: 'Tunai',
+          debit: 'Debit Card', 
+          ewallet: 'E-Wallet',
+          qris: 'QRIS'
+        };
+        const methodIcons = {
+          tunai: '💵',
+          debit: '💳',
+          ewallet: '📱', 
+          qris: '🔗'
+        };
+        
+        paymentBreakdown.push({
+          method: methodNames[method],
+          icon: methodIcons[method],
+          amount: paymentMethods[method]
+        });
+      }
+    });
+  } else {
+    // Single payment logic
+    const cashInput = document.getElementById('cashInput');
+    bayar = parseNumberFromString(cashInput.value);
+    kembali = bayar - total;
+    paymentBreakdown.push({
+      method: 'Tunai',
+      icon: '💵',
+      amount: bayar
+    });
+  }
+  
+  console.log('📊 Data transaksi:', { total, bayar, kembali, items: transaksi.length, paymentBreakdown });
+  
+  if (total === 0) {
+    showNotification('Tidak ada transaksi untuk dicetak!', 'warning');
+    return;
+  }
+
+  // Data untuk struk
+  const storeName = kasirInfo.namaToko || 'TOKO KITA';
+  const currentDate = new Date().toLocaleString('id-ID');
+  const cashierName = kasirInfo.namaKasir || 'Kasir';
+  
+  console.log('🏪 Data toko:', { storeName, currentDate, cashierName });
+
+  // Buat HTML untuk struk
+  let strukHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Struk ${storeName}</title>
+      <meta charset="utf-8">
+      <style>
+        /* RESET DAN PRINT STYLES */
+        * {
+          margin: 0 !important;
+          padding: 0 !important;
+          box-sizing: border-box !important;
+          font-family: 'Courier New', monospace !important;
+        }
+        
+        body {
+          width: 80mm !important;
+          max-width: 80mm !important;
+          min-height: 100mm !important;
+          margin: 2mm !important;
+          padding: 0 !important;
+          font-size: 12px !important;
+          line-height: 1.2 !important;
+          color: #000 !important;
+          background: #fff !important;
+        }
+        
+        .struk-content {
+          width: 100% !important;
+          max-width: 76mm !important;
+          margin: 0 auto !important;
+          padding: 1mm !important;
+        }
+        
+        .struk-header {
+          text-align: center !important;
+          margin-bottom: 2mm !important;
+          border-bottom: 1px dashed #000 !important;
+          padding-bottom: 1mm !important;
+        }
+        
+        .struk-header h2 {
+          font-size: 14px !important;
+          font-weight: bold !important;
+          margin: 0 !important;
+          text-transform: uppercase;
+        }
+        
+        .struk-info {
+          text-align: center !important;
+          font-size: 10px !important;
+          margin-bottom: 2mm !important;
+        }
+        
+        .struk-table {
+          width: 100% !important;
+          border-collapse: collapse !important;
+          margin: 2mm 0 !important;
+          font-size: 11px !important;
+        }
+        
+        .struk-table th,
+        .struk-table td {
+          padding: 0.5mm 0 !important;
+          text-align: left !important;
+          border: none !important;
+          vertical-align: top;
+        }
+        
+        .struk-table th:nth-child(2),
+        .struk-table td:nth-child(2),
+        .struk-table th:nth-child(3),
+        .struk-table td:nth-child(3) {
+          text-align: right !important;
+          width: 25% !important;
+        }
+        
+        .struk-table tfoot {
+          border-top: 1px dashed #000 !important;
+          margin-top: 2mm !important;
+        }
+        
+        .struk-table tfoot td {
+          padding-top: 1mm !important;
+          font-weight: bold !important;
+        }
+        
+        .payment-breakdown {
+          margin: 2mm 0 !important;
+          padding-top: 1mm !important;
+          border-top: 1px dashed #000 !important;
+          font-size: 10px !important;
+        }
+        
+        .payment-method {
+          display: flex !important;
+          justify-content: space-between !important;
+          margin-bottom: 0.5mm !important;
+        }
+        
+        .struk-footer {
+          text-align: center !important;
+          margin-top: 3mm !important;
+          padding-top: 1mm !important;
+          border-top: 1px dashed #000 !important;
+          font-size: 10px !important;
+          font-style: italic;
+        }
+        
+        .item-name {
+          word-break: break-word;
+          max-width: 45mm;
+        }
+        
+        @page {
+          size: auto;
+          margin: 2mm;
+        }
+        
+        @media print {
+          body {
+            margin: 0 !important;
+            padding: 2mm !important;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="struk-content">
+        <div class="struk-header">
+          <h2>${storeName}</h2>
+        </div>
+        
+        <div class="struk-info">
+          <div>${currentDate}</div>
+          <div>Kasir: ${cashierName}</div>
+        </div>
+        
+        <table class="struk-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Harga</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+  
+  // Tambahkan items
+  transaksi.forEach(item => {
+    const nama = item.nama.length > 20 ? item.nama.substring(0, 20) + '...' : item.nama;
+    strukHTML += `
+      <tr>
+        <td class="item-name">${nama} (${item.jumlah})</td>
+        <td>${formatRupiah(item.harga)}</td>
+        <td>${formatRupiah(item.subtotal)}</td>
+      </tr>
+    `;
+  });
+  
+  // Tambahkan total
+  strukHTML += `
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2">Total</td>
+              <td>${formatRupiah(total)}</td>
+            </tr>
+            <tr>
+              <td colspan="2">Bayar</td>
+              <td>${formatRupiah(bayar)}</td>
+            </tr>
+            <tr>
+              <td colspan="2">Kembali</td>
+              <td>${formatRupiah(kembali)}</td>
+            </tr>
+          </tfoot>
+        </table>
+  `;
+  
+  // 🔥 TAMBAHKAN PAYMENT BREAKDOWN JIKA MULTIPLE PAYMENT
+  if (paymentBreakdown.length > 1) {
+    strukHTML += `
+        <div class="payment-breakdown">
+          <div style="text-align:center; margin-bottom:1mm; font-weight:bold">Metode Pembayaran:</div>
+    `;
+    
+    paymentBreakdown.forEach(payment => {
+      strukHTML += `
+          <div class="payment-method">
+            <span>${payment.icon} ${payment.method}</span>
+            <span>${formatRupiah(payment.amount)}</span>
+          </div>
+      `;
+    });
+    
+    strukHTML += `</div>`;
+  }
+  
+  strukHTML += `
+        <div class="struk-footer">
+          ${currentSettings.Footer_Struk || 'Terima Kasih'}
+        </div>
+      </div>
+      
+      <script>
+        // Auto print dan close
+        window.onload = function() {
+          setTimeout(function() {
+            window.print();
+            setTimeout(function() {
+              window.close();
+            }, 500);
+          }, 300);
+        };
+        
+        // Fallback manual close
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') {
+            window.close();
+          }
+        });
+      </script>
+    </body>
+    </html>
+  `;
+  
+  console.log('📝 Struk HTML generated, length:', strukHTML.length);
+  
+  // Buka window baru untuk print
+  const printWindow = window.open('', '_blank', 'width=80mm,height=200mm');
+  if (!printWindow) {
+    showNotification('Popup diblokir! Izinkan popup untuk mencetak struk.', 'error');
+    return;
+  }
+  
+  printWindow.document.write(strukHTML);
+  printWindow.document.close();
+  
+  console.log('✅ Struk window opened successfully');
+}
+
+// ==================== TRANSAKSI & PRINT ====================
+
+// Selesaikan transaksi dengan update stok
+async function selesaikanTransaksi() {
+  if (!transaksi.length) {
+    showNotification('Belum ada pesanan', 'warning');
+    return;
+  }
+  
+  const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
+  let bayar, kembali, paymentData;
+  
+  if (isMultiplePayment) {
+    // Multiple payment logic
+    bayar = calculateTotalPaid();
+    kembali = bayar - total;
+    paymentData = {
+      isMultiple: true,
+      methods: { ...paymentMethods },
+      totalPaid: bayar
+    };
+  } else {
+    // Single payment logic
+    const cashInput = document.getElementById('cashInput');
+    bayar = parseNumberFromString(cashInput.value);
+    kembali = bayar - total;
+    paymentData = {
+      isMultiple: false,
+      methods: { tunai: bayar },
+      totalPaid: bayar
+    };
+  }
+  
+  // Validasi pembayaran
+  if (bayar < total) {
+    showNotification('Jumlah bayar kurang dari total!', 'warning');
+    return;
+  }
+  
+  const konfirmasi = confirm(
+    `Total: Rp ${formatRupiah(total)}\n` +
+    `Bayar: Rp ${formatRupiah(bayar)}\n` +
+    `Kembali: Rp ${formatRupiah(kembali)}\n\n` +
+    `Lanjutkan transaksi?`
+  );
+  
+  if (!konfirmasi) return;
+  
+  try {
+    const data = await hybridFetch('/saveTransaksi', {
+      transaksi: transaksi,
+      total: total,
+      idToko: kasirInfo.idToko,
+      kasir: kasirInfo.namaKasir || 'Kasir',
+      bayar: bayar,
+      kembali: kembali,
+      paymentData: paymentData  // KIRIM DATA PAYMENT
+    });
+    
+    if (data && data.success) {
+      printStruk();
+      
+      setTimeout(() => {
+        // Reset transaksi dan payment
+        transaksi = [];
+        resetPaymentMethods();
+        
+        renderTransaksi();
+        document.getElementById('cashInput').value = '0';
+        document.getElementById('uangKembali').textContent = '0';
+        
+        // Kembali ke single payment mode jika sedang di multiple
+        if (isMultiplePayment) {
+          togglePaymentMode();
+        }
+        
+        clearCache();
+        loadMenu();
+        showNotification('Transaksi berhasil disimpan!', 'success');
+      }, 1000);
+      
+    } else {
+      showNotification('Gagal simpan transaksi: ' + (data.message || 'Unknown error'), 'error');
+    }
+  } catch(err) {
+    showNotification('Gagal mengirim data ke server: ' + err.message, 'error');
+  }
+}
+
 // ==================== USER MANAGEMENT FUNCTIONS ====================
 
 // Load data user dengan SORTING BERDASARKAN TOKO
@@ -953,7 +2731,7 @@ async function loadUserManagement() {
       populateTokoDropdowns();
       showTabsBasedOnLevel();
       
-      // 🔥 Setup filters setelah data toko loaded
+      // Setup filters setelah data toko loaded
       setTimeout(() => {
         setupLaporanFilters();
         console.log('✅ Laporan filters setup after user data loaded');
@@ -976,7 +2754,7 @@ async function loadUserManagement() {
   }
 }
 
-// 🔥 FUNGSI BARU: Load toko management
+// Load toko management
 async function loadTokoManagement() {
   try {
     const cachedToko = getCachedData('toko');
@@ -1156,7 +2934,6 @@ function renderTokoManagementList(filteredData = tokoManagementData) {
 }
 
 // Populate dropdown toko
-// 🔥 PERBAIKAN: populateTokoDropdowns dengan deduplikasi
 function populateTokoDropdowns() {
   const userTokoSelect = document.getElementById('inputTokoUser');
   
@@ -1187,6 +2964,7 @@ function populateTokoDropdowns() {
     }
   }
 }
+
 // Permission checks
 function canEditUser(user) {
   if (kasirInfo.levelAkses === 'OWNER') return true;
@@ -1512,1934 +3290,7 @@ const setupUserManagementSearch = debounce(function() {
   }
 }, 300);
 
-// ==================== MENU MANAGEMENT FUNCTIONS ====================
-
-// Load toko untuk menu management
-async function loadTokoForMenuManagement() {
-  try {
-    const cachedToko = getCachedData('toko');
-    if (cachedToko) {
-      populateTokoDropdownForMenu(cachedToko);
-      return;
-    }
-
-    const data = await hybridFetch('/getToko', { 
-      levelAkses: kasirInfo.levelAkses
-    });
-    
-    if (data && data.success) {
-      populateTokoDropdownForMenu(data.data);
-    }
-  } catch (err) {
-    console.error('Error load toko for menu:', err);
-  }
-}
-
-// Populate dropdown toko untuk menu management
-function populateTokoDropdownForMenu(tokoData) {
-  const tokoSelect = document.getElementById('inputToko');
-  if (!tokoSelect) return;
-  
-  const defaultOptions = tokoSelect.innerHTML;
-  tokoSelect.innerHTML = defaultOptions;
-  
-  if (kasirInfo.levelAkses === 'OWNER' && tokoData && tokoData.length > 0) {
-    tokoData.forEach(toko => {
-      if (toko.status === 'Aktif' && toko.id_toko !== 'ALL') {
-        const option = document.createElement('option');
-        option.value = toko.id_toko;
-        option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
-        tokoSelect.appendChild(option);
-      }
-    });
-  }
-}
-
-// Setup filter toko untuk management menu
-function setupMenuManagementFilter() {
-  const searchContainer = document.querySelector('.daftar-menu .search-wrap');
-  if (!searchContainer) return;
-  
-  if (kasirInfo.levelAkses !== 'OWNER') return;
-  
-  let filterToko = document.getElementById('filterTokoMenuManagement');
-  
-  if (!filterToko) {
-    const filterGroup = document.createElement('div');
-    filterGroup.className = 'filter-group';
-    filterGroup.innerHTML = `
-      <select id="filterTokoMenuManagement" style="min-width: 150px;">
-        <option value="">Semua Toko</option>
-        <option value="ALL">🌍 Semua Toko</option>
-      </select>
-    `;
-    searchContainer.appendChild(filterGroup);
-    
-    filterToko = document.getElementById('filterTokoMenuManagement');
-    loadTokoForMenuFilter();
-    
-    filterToko.addEventListener('change', (e) => {
-      const searchInput = document.getElementById('searchMenuManagement');
-      filterMenuManagementData(searchInput ? searchInput.value : '', e.target.value);
-    });
-  }
-}
-
-// Load toko untuk filter menu management
-async function loadTokoForMenuFilter() {
-  try {
-    const cachedToko = getCachedData('toko');
-    if (cachedToko) {
-      const filterToko = document.getElementById('filterTokoMenuManagement');
-      if (filterToko) {
-        cachedToko.forEach(toko => {
-          if (toko.status === 'Aktif' && toko.id_toko !== 'ALL') {
-            const option = document.createElement('option');
-            option.value = toko.id_toko;
-            option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
-            filterToko.appendChild(option);
-          }
-        });
-      }
-      return;
-    }
-
-    const data = await hybridFetch('/getToko', { 
-      levelAkses: kasirInfo.levelAkses
-    });
-    
-    if (data && data.success) {
-      const filterToko = document.getElementById('filterTokoMenuManagement');
-      if (filterToko) {
-        data.data.forEach(toko => {
-          if (toko.status === 'Aktif' && toko.id_toko !== 'ALL') {
-            const option = document.createElement('option');
-            option.value = toko.id_toko;
-            option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
-            filterToko.appendChild(option);
-          }
-        });
-      }
-    }
-  } catch (err) {
-    console.error('Error load toko for filter:', err);
-  }
-}
-
-// Filter data menu management
-function filterMenuManagementData(searchTerm = '', tokoFilter = '') {
-  let filtered = menuManagementData;
-  
-  // Filter berdasarkan pencarian
-  if (searchTerm) {
-    const term = searchTerm.toLowerCase().trim();
-    filtered = filtered.filter(menu => 
-      menu.nama_menu.toLowerCase().includes(term) ||
-      menu.kategori.toLowerCase().includes(term) ||
-      menu.id_menu.toLowerCase().includes(term)
-    );
-  }
-  
-  // Filter toko yang KONSISTEN berdasarkan level akses
-  if (kasirInfo.levelAkses === 'OWNER') {
-    if (tokoFilter && tokoFilter !== 'ALL' && tokoFilter !== 'current') {
-      filtered = filtered.filter(menu => 
-        menu.id_toko === tokoFilter || menu.id_toko === 'ALL'
-      );
-    }
-  } else {
-    // ADMIN/KASIR: Hanya bisa lihat toko sendiri + ALL
-    filtered = filtered.filter(menu => 
-      menu.id_toko === kasirInfo.idToko || menu.id_toko === 'ALL'
-    );
-  }
-  
-  renderMenuManagementList(filtered);
-}
-
-// Load data untuk management menu dengan cache
-async function loadMenuManagement() {
-  try {
-    // Cek cache dulu
-    const cachedMenu = getCachedData('menuManagement');
-    if (cachedMenu) {
-      menuManagementData = cachedMenu;
-      renderMenuManagementList();
-      
-      if (kasirInfo.levelAkses === 'OWNER') {
-        await loadTokoForMenuManagement();
-      }
-      
-      setupMenuManagementFilter();
-      
-      // 🔥 Setup filters setelah data menu loaded
-      setTimeout(() => {
-        setupLaporanFilters();
-        console.log('✅ Laporan filters setup after menu data loaded');
-      }, 100);
-      
-      return;
-    }
-
-    const data = await hybridFetch('/getMenuManagement', { 
-      idToko: kasirInfo.idToko,
-      levelAkses: kasirInfo.levelAkses
-    });
-    
-    if (data && data.success) {
-      menuManagementData = data.data || [];
-      setCachedData('menuManagement', menuManagementData);
-      renderMenuManagementList();
-      
-      if (kasirInfo.levelAkses === 'OWNER') {
-        await loadTokoForMenuManagement();
-      }
-      
-      setupMenuManagementFilter();
-      
-      // 🔥 Setup filters setelah data menu loaded
-      setTimeout(() => {
-        setupLaporanFilters();
-        console.log('✅ Laporan filters setup after menu data loaded');
-      }, 100);
-      
-    } else {
-      menuManagementData = [];
-      renderMenuManagementList();
-    }
-  } catch (err) {
-    console.error('Error loadMenuManagement:', err);
-    menuManagementData = [];
-    renderMenuManagementList();
-  }
-}
-
-// Render daftar menu dengan tampilkan STATUS
-function renderMenuManagementList(filteredData = menuManagementData) {
-  const tbody = document.getElementById('daftarMenuBody');
-  tbody.innerHTML = '';
-  
-  if (!filteredData || filteredData.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="8" style="text-align:center;padding:20px;color:var(--muted)">
-          Tidak ada data menu
-        </td>
-      </tr>
-    `;
-    return;
-  }
-  
-  filteredData.forEach(menu => {
-    const tr = document.createElement('tr');
-    
-    // Tentukan class untuk stok
-    const stokClass = menu.stok <= 0 ? 'stok-danger' : (menu.stok < 10 ? 'stok-warning' : '');
-    
-    // Tentukan class untuk status
-    const statusClass = menu.status === 'Aktif' ? 'status-aktif' : 'status-nonaktif';
-    const statusIcon = menu.status === 'Aktif' ? '✅' : '⏸️';
-    
-    // Tampilan toko
-    let tokoDisplay = menu.id_toko;
-    if (menu.id_toko === 'ALL') {
-      tokoDisplay = '🌍 Semua Toko';
-    } else if (kasirInfo.levelAkses === 'OWNER') {
-      const tokoInfo = tokoManagementData.find(t => t.id_toko === menu.id_toko);
-      tokoDisplay = tokoInfo ? `${menu.id_toko} - ${tokoInfo.nama_toko}` : menu.id_toko;
-    } else if (kasirInfo.levelAkses === 'ADMIN') {
-      tokoDisplay = `${menu.id_toko} - ${kasirInfo.namaToko || menu.id_toko}`;
-    }
-    
-    tr.innerHTML = `
-      <td>${menu.id_menu}</td>
-      <td><strong>${menu.nama_menu}</strong></td>
-      <td>${menu.kategori}</td>
-      <td>Rp${formatRupiah(menu.harga)}</td>
-      <td class="${stokClass}">${menu.stok}</td>
-      <td><span class="${statusClass}">${statusIcon} ${menu.status}</span></td>
-      <td>${tokoDisplay}</td>
-      <td>
-        ${canEditMenu(menu) ? `<button class="btn-edit" data-id="${menu.id_menu}">✏️ Edit</button>` : ''}
-        ${canDeleteMenu(menu) ? `<button class="btn-delete" data-id="${menu.id_menu}">🗑️ Hapus</button>` : ''}
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-  
-  // Add event listeners untuk edit/delete buttons
-  document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const menuId = e.target.getAttribute('data-id');
-      editMenu(menuId);
-    });
-  });
-  
-  document.querySelectorAll('.btn-delete').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const menuId = e.target.getAttribute('data-id');
-      deleteMenu(menuId);
-    });
-  });
-}
-
-// Permission checks untuk menu
-function canEditMenu(menu) {
-  if (kasirInfo.levelAkses === 'OWNER') return true;
-  if (kasirInfo.levelAkses === 'ADMIN' && menu.id_toko === kasirInfo.idToko) return true;
-  return false;
-}
-
-function canDeleteMenu(menu) {
-  if (kasirInfo.levelAkses === 'OWNER') return true;
-  if (kasirInfo.levelAkses === 'ADMIN' && menu.id_toko === kasirInfo.idToko) return true;
-  return false;
-}
-
-// Cek duplikat nama menu
-function isMenuNameDuplicate(namaMenu, excludeId = null) {
-  return menuManagementData.some(menu => 
-    menu.nama_menu.toLowerCase() === namaMenu.toLowerCase() && 
-    menu.id_menu !== excludeId
-  );
-}
-
-// Edit menu dengan tampilkan STATUS di form
-// Edit menu dengan tampilkan STATUS di form - VERSI DIPERBAIKI
-function editMenu(menuId) {
-  console.log('✏️ Edit menu clicked:', menuId);
-  
-  const menu = menuManagementData.find(m => m.id_menu === menuId);
-  if (!menu) {
-    console.log('❌ Menu not found:', menuId);
-    return;
-  }
-  
-  editingMenuId = menuId;
-  
-  // Isi form dengan data menu
-  document.getElementById('inputNamaMenu').value = menu.nama_menu;
-  document.getElementById('inputKategori').value = menu.kategori;
-  document.getElementById('inputHarga').value = menu.harga;
-  document.getElementById('inputStok').value = menu.stok || 0;
-  
-  // Tampilkan STATUS di form
-  let statusSelect = document.getElementById('inputStatusMenu');
-  if (!statusSelect) {
-    // Buat dropdown status jika belum ada
-    const formGroup = document.createElement('div');
-    formGroup.className = 'form-group';
-    formGroup.innerHTML = `
-      <label for="inputStatusMenu">Status:</label>
-      <select id="inputStatusMenu">
-        <option value="Aktif">Aktif</option>
-        <option value="Nonaktif">Nonaktif</option>
-      </select>
-    `;
-    document.getElementById('inputStok').parentNode.after(formGroup);
-    statusSelect = document.getElementById('inputStatusMenu');
-  }
-  statusSelect.value = menu.status;
-  
-  // Set nilai toko
-  const tokoSelect = document.getElementById('inputToko');
-  if (tokoSelect) {
-    if (kasirInfo.levelAkses === 'OWNER') {
-      tokoSelect.value = menu.id_toko;
-    } else {
-      tokoSelect.value = 'current';
-    }
-  }
-  
-  // Update UI untuk mode edit
-  document.getElementById('btnSimpanMenu').textContent = '💾 Update Menu';
-  document.getElementById('btnBatalEdit').style.display = 'inline-block';
-  document.getElementById('menuIdDisplay').textContent = `Editing: ${menuId} (${menu.status})`;
-  
-  // 🔥 PASTIKAN TAB MANAGEMENT AKTIF DULU
-  const managementTab = document.querySelector('.nav-tab[data-tab="manajemen"]');
-  if (managementTab && !managementTab.classList.contains('active')) {
-    console.log('⚠️ Management tab tidak aktif, switching...');
-    managementTab.click(); // Trigger click untuk activate tab
-  }
-  
-  // 🔥 AUTO SWITCH KE SUBTAB FORM - dengan delay sedikit
-  setTimeout(() => {
-    console.log('🔄 Executing subtab switch...');
-    switchToSubTab('form-menu');
-  }, 100);
-  
-  console.log('✅ Edit menu setup completed');
-}
-// Clear form menu dengan reset STATUS
-function clearMenuForm() {
-  document.getElementById('inputNamaMenu').value = '';
-  document.getElementById('inputKategori').value = '';
-  document.getElementById('inputHarga').value = '';
-  document.getElementById('inputStok').value = '0';
-  
-  // Reset status ke Aktif
-  const statusSelect = document.getElementById('inputStatusMenu');
-  if (statusSelect) {
-    statusSelect.value = 'Aktif';
-  }
-  
-  // Set default toko berdasarkan level akses
-  const tokoSelect = document.getElementById('inputToko');
-  if (tokoSelect) {
-    if (kasirInfo.levelAkses === 'OWNER') {
-      tokoSelect.value = 'current';
-    } else {
-      tokoSelect.value = 'current';
-    }
-  }
-  
-  // Hapus pesan error duplikat
-  const errorMsg = document.getElementById('duplicateError');
-  if (errorMsg) errorMsg.remove();
-}
-
-function cancelEdit() {
-  editingMenuId = null;
-  clearMenuForm();
-  document.getElementById('btnSimpanMenu').textContent = '💾 Simpan Menu';
-  document.getElementById('btnBatalEdit').style.display = 'none';
-  document.getElementById('menuIdDisplay').textContent = '';
-  
-  // 🔥 AUTO SWITCH KE SUBTAB DAFTAR
-  switchToSubTab('daftar-menu');
-}
-
-// Save menu dengan STATUS
-async function saveMenu() {
-  const namaMenu = document.getElementById('inputNamaMenu').value.trim();
-  const kategori = document.getElementById('inputKategori').value;
-  const harga = parseInt(document.getElementById('inputHarga').value) || 0;
-  const stok = parseInt(document.getElementById('inputStok').value) || 0;
-  const toko = document.getElementById('inputToko').value;
-  const statusSelect = document.getElementById('inputStatusMenu');
-  const status = statusSelect ? statusSelect.value : 'Aktif';
-  
-  const idToko = toko === 'current' ? kasirInfo.idToko : toko;
-  
-  // Validasi
-  if (!namaMenu) {
-    showNotification('Nama menu harus diisi', 'warning');
-    return;
-  }
-  if (!kategori) {
-    showNotification('Kategori harus dipilih', 'warning');
-    return;
-  }
-  if (harga <= 0) {
-    showNotification('Harga harus lebih dari 0', 'warning');
-    return;
-  }
-  
-  // Cek duplikat nama menu
-  if (isMenuNameDuplicate(namaMenu, editingMenuId)) {
-    showNotification('❌ Nama menu sudah ada! Gunakan nama yang berbeda.', 'error');
-    return;
-  }
-  
-  try {
-    const action = editingMenuId ? 'updateMenu' : 'createMenu';
-    const payload = {
-      idToko: kasirInfo.idToko,
-      namaMenu: namaMenu,
-      kategori: kategori,
-      harga: harga,
-      stok: stok,
-      status: status,
-      targetToko: idToko,
-      levelAkses: kasirInfo.levelAkses
-    };
-    
-    if (editingMenuId) {
-      payload.idMenu = editingMenuId;
-    }
-    
-    const data = await hybridFetch(`/${action}`, payload);
-    
-    if (data && data.success) {
-      showNotification(editingMenuId ? 'Menu berhasil diupdate' : 'Menu berhasil ditambahkan', 'success');
-      clearMenuForm();
-      cancelEdit();
-      clearCache();
-      loadMenuManagement();
-      loadMenu();
-    // 🔥 AUTO SWITCH KE SUBTAB DAFTAR SETELAH SIMPAN
-  switchToSubTab('daftar-menu');
-}
-     else {
-      showNotification('Gagal menyimpan menu: ' + (data.message || 'Unknown error'), 'error');
-    }
-  } catch (err) {
-    showNotification('Gagal menyimpan menu: ' + err.message, 'error');
-  }
-  
-}
-
-// Delete menu PERMANEN
-async function deleteMenu(menuId) {
-  if (!confirm(`Apakah Anda yakin ingin MENGHAPUS PERMANEN menu ${menuId}?`)) {
-    return;
-  }
-  
-  try {
-    const data = await hybridFetch('/deleteMenu', {
-      idMenu: menuId,
-      idToko: kasirInfo.idToko,
-      levelAkses: kasirInfo.levelAkses,
-      permanent: true
-    });
-    
-    if (data && data.success) {
-      showNotification('Menu berhasil dihapus PERMANEN', 'success');
-      clearCache();
-      loadMenuManagement();
-      loadMenu();
-    } else {
-      showNotification('Gagal menghapus menu: ' + (data.message || 'Unknown error'), 'error');
-    }
-  } catch (err) {
-    showNotification('Gagal menghapus menu: ' + err.message, 'error');
-  }
-}
-
-// Search menu di management dengan debounce
-const setupMenuManagementSearch = debounce(function() {
-  const searchInput = document.getElementById('searchMenuManagement');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const searchTerm = e.target.value.toLowerCase().trim();
-      const filterToko = document.getElementById('filterTokoMenuManagement');
-      const tokoFilter = filterToko ? filterToko.value : '';
-      
-      filterMenuManagementData(searchTerm, tokoFilter);
-    });
-  }
-}, 300);
-
-// ==================== TRANSAKSI FUNCTIONS ====================
-
-// Load menu dengan cache
-async function loadMenu(){
-  const spinner = document.getElementById('menuLoading');
-  if (spinner) spinner.style.display = 'flex';
-  
-  try {
-    // Cek cache dulu
-    const cachedMenu = getCachedData('menu');
-    if (cachedMenu) {
-      menuData = cachedMenu;
-      filteredMenu = [...menuData];
-      currentPage = 1;
-      renderMenuList();
-      if (spinner) spinner.style.display = 'none';
-      return;
-    }
-
-    const data = await hybridFetch('/getMenu', { 
-      idToko: kasirInfo.idToko,
-      levelAkses: kasirInfo.levelAkses
-    });
-    
-    if (data && data.success && Array.isArray(data.data)) {
-      menuData = data.data.map((m, index) => {
-        return {
-          id: m.id,
-          nama: m.nama,
-          harga: m.harga,
-          kategori: m.kategori,
-          stok: m.stok || 0
-        };
-      });
-      
-      setCachedData('menu', menuData);
-      filteredMenu = [...menuData];
-      currentPage = 1;
-      renderMenuList();
-    } else {
-      menuData = [];
-      filteredMenu = [];
-      renderMenuList([]);
-    }
-  } catch(err) {
-    menuData = [];
-    filteredMenu = [];
-    renderMenuList([]);
-  } finally {
-    if (spinner) spinner.style.display = 'none';
-  }
-}
-
-// Render menu dengan virtual DOM
-function renderMenuList(items = filteredMenu){
-  const list = document.getElementById('menuList');
-  if (!list) return;
-  
-  list.innerHTML = '';
-  
-  if (!items || items.length === 0) {
-    list.innerHTML = "<div style='color:var(--muted); text-align:center; padding:10px; grid-column:1/-1; font-size:0.7rem;'>Tidak ada menu</div>";
-    updatePaginationInfo(0);
-    return;
-  }
-
-  const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
-  const itemsToShow = items.slice(startIndex, endIndex);
-
-  const fragment = document.createDocumentFragment();
-
-  itemsToShow.forEach(m => {
-    const btn = document.createElement('button');
-    const hargaNum = m.harga;
-    const stok = m.stok || 0;
-    
-    let stokClass = '';
-    let stokText = '';
-    if (stok <= 0) {
-      stokClass = 'stok-habis';
-      stokText = '❌ Habis';
-    } else if (stok < 5) {
-      stokClass = 'stok-sedikit';
-      stokText = `⚠️ ${stok}`;
-    } else {
-      stokText = `✅ ${stok}`;
-    }
-    
-    btn.className = `menu-item ${stokClass}`;
-    btn.innerHTML = `
-      <div class="nama">${m.nama}</div>
-      <div class="harga">Rp${formatRupiah(hargaNum)}</div>
-      <div class="stok ${stokClass}">${stokText}</div>
-    `;
-    
-    btn.setAttribute('data-id', m.id);
-    btn.setAttribute('data-stok', stok);
-    
-    if (stok <= 0) {
-      btn.disabled = true;
-      btn.style.opacity = '0.6';
-      btn.style.cursor = 'not-allowed';
-    } else {
-      btn.onclick = () => tambahMenu({ 
-        id: m.id,
-        nama: m.nama, 
-        harga: hargaNum,
-        stok: stok
-      });
-    }
-    
-    fragment.appendChild(btn);
-  });
-
-  list.appendChild(fragment);
-  updatePaginationInfo(items.length, totalPages);
-}
-
-function updatePaginationInfo(totalItems, totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE)) {
-  const pageInfo = document.getElementById('pageInfo');
-  const prevBtn = document.getElementById('prevPage');
-  const nextBtn = document.getElementById('nextPage');
-  
-  if (pageInfo) pageInfo.textContent = `Hal ${currentPage}/${totalPages}`;
-  if (prevBtn) prevBtn.disabled = currentPage === 1;
-  if (nextBtn) nextBtn.disabled = currentPage === totalPages || totalPages === 0;
-}
-
-function goToPage(page) {
-  currentPage = page;
-  renderMenuList();
-}
-
-// Filter pencarian dengan debounce
-const filterMenuByText = debounce(function(text){
-  if (!text) {
-    filteredMenu = [...menuData];
-    currentPage = 1;
-    renderMenuList();
-    return;
-  }
-  
-  const q = text.trim().toLowerCase();
-  filteredMenu = menuData.filter(m => {
-    return (m.nama && m.nama.toLowerCase().includes(q)) || 
-           (m.kategori && m.kategori.toLowerCase().includes(q));
-  });
-  
-  currentPage = 1;
-  renderMenuList();
-}, 300);
-
-// Tambah menu dengan validasi stok
-// Tambah menu dengan auto focus - VERSI DIPERBAIKI
-function tambahMenu(menu){
-  const stokTersedia = menu.stok || 0;
-  const existingIndex = transaksi.findIndex(t => t.id === menu.id);
-  
-  if (existingIndex !== -1) {
-    const jumlahSekarang = transaksi[existingIndex].jumlah;
-    if (jumlahSekarang + 1 > stokTersedia) {
-      showNotification(`❌ Stok tidak cukup! Stok ${menu.nama} hanya ${stokTersedia}`, 'warning');
-      return;
-    }
-    
-    transaksi[existingIndex].jumlah += 1;
-    transaksi[existingIndex].subtotal = transaksi[existingIndex].jumlah * transaksi[existingIndex].harga;
-  } else {
-    if (stokTersedia < 1) {
-      showNotification(`❌ Stok ${menu.nama} habis!`, 'warning');
-      return;
-    }
-    
-    transaksi.push({ 
-      id: menu.id,
-      nama: menu.nama, 
-      harga: menu.harga,
-      jumlah: 1, 
-      subtotal: menu.harga,
-      stok: stokTersedia
-    });
-  }
-  
-  renderTransaksi();
-  
-  // 🔥 SET FOCUS KE KOLOM JUMLAH setelah tambah menu
-  setTimeout(() => {
-    const inputs = document.querySelectorAll(".jumlah-input");
-    const targetIndex = existingIndex !== -1 ? existingIndex : transaksi.length - 1;
-    
-    if (inputs[targetIndex]) {
-      inputs[targetIndex].focus();
-      inputs[targetIndex].select();
-    }
-  }, 100);
-}
-
-// Render transaksi dengan virtual DOM
-// Render transaksi dengan pertahankan fokus - DIPERBAIKI
-// 🔥 PERBAIKAN: Render transaksi dengan semua fitur preserved
-function renderTransaksi(){
-  const tbody = document.querySelector('#tblTransaksi tbody');
-  if (!tbody) return;
-  
-  // 🔥 SIMPAN ELEMENT YANG SEDANG FOCUS SEBELUM RENDER
-  const activeElement = document.activeElement;
-  let preserveFocus = null;
-  
-  if (activeElement && activeElement.classList.contains('jumlah-input')) {
-    preserveFocus = activeElement.getAttribute('data-index');
-  }
-  
-  tbody.innerHTML = '';
-  let total = 0;
-  
-  const fragment = document.createDocumentFragment();
-  
-  transaksi.forEach((item, i) => {
-    total += item.subtotal;
-    const stokInfo = item.stok ? ` (Stok: ${item.stok})` : '';
-    const stokWarning = item.jumlah > item.stok ? ' ❌ Melebihi stok!' : '';
-    
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>
-        <strong>${item.nama}</strong>${stokInfo}
-        ${stokWarning}
-      </td>
-      <td>Rp${formatRupiah(item.harga)}</td>
-      <td>
-        <input type="number" min="0" value="${item.jumlah}" data-index="${i}" class="jumlah-input">
-      </td>
-      <td><strong class="subtotal-display" data-index="${i}">Rp${formatRupiah(item.subtotal)}</strong></td>
-      <td><button class="hapus-btn" data-index="${i}" title="Hapus item">❌</button></td>
-    `;
-    fragment.appendChild(tr);
-  });
-
-  tbody.appendChild(fragment);
-  
-  // Update total display
-  document.getElementById('totalHarga').textContent = formatRupiah(total);
-  
-  // 🔥 AUTO-UPDATE CASH INPUT ke nilai total
-  const cashInput = document.getElementById('cashInput');
-  cashInput.value = formatRupiah(total);
-  
-  hitungKembali();
-  
-  // 🔥 RESTORE FOCUS JIKA SEDANG INPUT
-  if (preserveFocus !== null) {
-    setTimeout(() => {
-      const inputs = document.querySelectorAll(".jumlah-input");
-      const targetIndex = parseInt(preserveFocus);
-      if (inputs[targetIndex]) {
-        inputs[targetIndex].focus();
-        inputs[targetIndex].select();
-      }
-    }, 10);
-  }
-}
-// Hitung kembalian
-function hitungKembali() {
-  if (isMultiplePayment) {
-    // Untuk multiple payment, kembalian sudah dihitung di updateMultiplePaymentDisplay
-    return;
-  }
-  
-  // Untuk single payment (original logic)
-  const cashInput = document.getElementById('cashInput');
-  const bayar = parseNumberFromString(cashInput.value);
-  const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
-  const kembali = bayar - total;
-  
-  document.getElementById('uangKembali').textContent = formatRupiah(kembali > 0 ? kembali : 0);
-}
-
-// 🔥 PERBAIKAN REAL-TIME: Setup event delegation untuk transaksi - VERSI LENGKAP
-function setupTransactionEventDelegation() {
-  const tbody = document.querySelector('#tblTransaksi tbody');
-  if (!tbody) return;
-  
-  // 🔥 FUNGSI BARU: Update subtotal secara real-time
-  function updateSubtotalRealTime(input, index, newJumlah) {
-    const item = transaksi[index];
-    
-    // Validasi stok
-    if (newJumlah > item.stok) {
-      // Tampilkan warning
-      const stokWarning = document.createElement('span');
-      stokWarning.className = 'stok-warning-real-time';
-      stokWarning.textContent = ` ❌ Max: ${item.stok}`;
-      stokWarning.style.color = 'var(--danger)';
-      stokWarning.style.fontSize = '0.7rem';
-      
-      // Hapus warning sebelumnya
-      const existingWarning = input.parentNode.querySelector('.stok-warning-real-time');
-      if (existingWarning) existingWarning.remove();
-      
-      input.parentNode.appendChild(stokWarning);
-    } else {
-      // Hapus warning jika stok cukup
-      const existingWarning = input.parentNode.querySelector('.stok-warning-real-time');
-      if (existingWarning) existingWarning.remove();
-    }
-    
-    // Update data transaksi
-    const jumlahValid = Math.max(0, newJumlah);
-    transaksi[index].jumlah = jumlahValid;
-    transaksi[index].subtotal = transaksi[index].jumlah * transaksi[index].harga;
-    
-    // 🔥 UPDATE SUBTOTAL DISPLAY SECARA LANGSUNG
-    const subtotalDisplay = document.querySelector(`.subtotal-display[data-index="${index}"]`);
-    if (subtotalDisplay) {
-      subtotalDisplay.textContent = `Rp${formatRupiah(transaksi[index].subtotal)}`;
-    }
-    
-    // 🔥 UPDATE TOTAL & CASH INPUT SECARA LANGSUNG
-    updateTotalOnly();
-  }
-  
-  // ==================== EVENT LISTENERS ====================
-  
-  // 🔥 EVENT: Input real-time (setiap ketikan)
-  tbody.addEventListener('input', function(e) {
-    if (e.target.classList.contains('jumlah-input')) {
-      const index = parseInt(e.target.getAttribute('data-index'));
-      if (isNaN(index) || index < 0 || index >= transaksi.length) return;
-      
-      const newJumlah = parseInt(e.target.value) || 0;
-      
-      // 🔥 UPDATE REAL-TIME: Langsung proses tanpa debounce
-      updateSubtotalRealTime(e.target, index, newJumlah);
-    }
-  });
-  
-  // 🔥 EVENT: Blur (final validation saat keluar dari input)
-  tbody.addEventListener('blur', function(e) {
-    if (e.target.classList.contains('jumlah-input')) {
-      const index = parseInt(e.target.getAttribute('data-index'));
-      if (isNaN(index) || index < 0 || index >= transaksi.length) return;
-      
-      const newJumlah = parseInt(e.target.value) || 0;
-      const item = transaksi[index];
-      
-      // Final validation saat keluar dari input
-      if (newJumlah > item.stok) {
-        // Reset ke stok maksimum
-        e.target.value = item.stok;
-        transaksi[index].jumlah = item.stok;
-        transaksi[index].subtotal = item.stok * item.harga;
-        
-        // Update display
-        const subtotalDisplay = document.querySelector(`.subtotal-display[data-index="${index}"]`);
-        if (subtotalDisplay) {
-          subtotalDisplay.textContent = `Rp${formatRupiah(transaksi[index].subtotal)}`;
-        }
-        
-        updateTotalOnly();
-        
-        // Hapus warning
-        const existingWarning = e.target.parentNode.querySelector('.stok-warning-real-time');
-        if (existingWarning) existingWarning.remove();
-      }
-      
-      // Jika jumlah 0, hapus item setelah blur
-      if (newJumlah <= 0) {
-        setTimeout(() => {
-          transaksi.splice(index, 1);
-          renderTransaksi(); // Render ulang karena struktur berubah
-        }, 100);
-      }
-    }
-  });
-  
-  // 🔥 EVENT: Keydown untuk Enter (pindah ke cash input)
-  tbody.addEventListener('keydown', function(e) {
-    if (e.target.classList.contains('jumlah-input')) {
-      const input = e.target;
-      const index = parseInt(input.getAttribute('data-index'));
-      
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        
-        const newJumlah = parseInt(input.value) || 0;
-        const item = transaksi[index];
-        
-        // Validasi stok saat Enter
-        if (newJumlah > item.stok) {
-          showNotification(`❌ Jumlah melebihi stok! Stok ${item.nama} hanya ${item.stok}`, 'warning');
-          input.value = item.stok;
-          updateSubtotalRealTime(input, index, item.stok);
-          input.select();
-          return;
-        }
-        
-        // Jika jumlah 0, hapus item
-        if (newJumlah <= 0) {
-          transaksi.splice(index, 1);
-          renderTransaksi();
-        } else {
-          // Update data dan tampilan
-          updateSubtotalRealTime(input, index, newJumlah);
-        }
-        
-        // 🔥 SET FOCUS KE CASH INPUT setelah Enter
-        setTimeout(() => {
-          const cashInput = document.getElementById('cashInput');
-          if (cashInput) {
-            cashInput.focus();
-            cashInput.select();
-          }
-        }, 50);
-      }
-    }
-  });
-  
-  // EVENT: Hapus item
-  tbody.addEventListener('click', function(e) {
-    if (e.target.classList.contains('hapus-btn')) {
-      const index = parseInt(e.target.getAttribute('data-index'));
-      if (!isNaN(index) && index >= 0 && index < transaksi.length) {
-        transaksi.splice(index, 1);
-        renderTransaksi(); // Render ulang karena ada perubahan struktur
-      }
-    }
-  });
-  
-  // EVENT: Select text saat focus
-  tbody.addEventListener('focusin', function(e) {
-    if (e.target.classList.contains('jumlah-input')) {
-      setTimeout(() => e.target.select(), 10);
-    }
-  });
-}
-
-// 🔥 FUNGSI BARU: Update total saja tanpa re-render tabel
-function updateTotalOnly() {
-  const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
-  
-  // Update total display
-  document.getElementById('totalHarga').textContent = formatRupiah(total);
-  
-  if (!isMultiplePayment) {
-    // Single payment: auto-update cash input
-    const cashInput = document.getElementById('cashInput');
-    cashInput.value = formatRupiah(total);
-  } else {
-    // Multiple payment: update display
-    updateMultiplePaymentDisplay();
-  }
-  
-  hitungKembali();
-}
-
-
-// ==================== LAPORAN FUNCTIONS MODERN ====================
-
-// Setup filter laporan berdasarkan level akses - VERSI AMAN
-
-// Setup filter laporan berdasarkan level akses - VERSI DIPERBAIKI
-// Setup filter laporan berdasarkan level akses - VERSI DIPERBAIKI
-function setupLaporanFilters() {
-  // 🔥 SAFETY CHECK: Pastikan kasirInfo sudah ada
-  if (!kasirInfo || !kasirInfo.levelAkses) {
-    console.log('⚠️ setupLaporanFilters: kasirInfo belum ready, skipping...');
-    return;
-  }
-  
-  const filterTokoGroup = document.getElementById('filterTokoGroup');
-  const filterTokoSelect = document.getElementById('filterTokoLaporan');
-  const filterMenuSelect = document.getElementById('filterMenu');
-  
-  console.log('🔧 Setting up laporan filters for:', kasirInfo.levelAkses);
-  console.log('📊 Available data - Toko:', tokoManagementData?.length, 'Menu:', menuManagementData?.length);
-  
-  // 🔥 PERBAIKAN: HENTIKAN MULTIPLE SETUP
-  if (filterTokoSelect && filterTokoSelect.hasAttribute('data-setup-done')) {
-    console.log('✅ Filter toko sudah di-setup, skipping...');
-    return;
-  }
-  
-  // Tampilkan filter toko hanya untuk OWNER
-  if (kasirInfo.levelAkses === 'OWNER') {
-    if (filterTokoGroup) {
-      filterTokoGroup.style.display = 'flex';
-      console.log('✅ Filter toko ditampilkan untuk OWNER');
-    }
-    
-    // Load data toko untuk filter - DENGAN DEDUPLIKASI
-    if (filterTokoSelect) {
-      // 🔥 PERBAIKAN: CLEAR DULU SEBELUM ISI
-      filterTokoSelect.innerHTML = '<option value="">Semua Toko</option>';
-      
-      if (tokoManagementData && tokoManagementData.length > 0) {
-        // 🔥 PERBAIKAN: GUNAKAN DEDUPLIKASI
-        const uniqueTokoMap = new Map();
-        
-        tokoManagementData.forEach(toko => {
-          if (toko.status === 'Aktif') {
-            if (!uniqueTokoMap.has(toko.id_toko)) {
-              uniqueTokoMap.set(toko.id_toko, toko);
-            }
-          }
-        });
-        
-        const uniqueToko = Array.from(uniqueTokoMap.values());
-        
-        uniqueToko.forEach(toko => {
-          const option = document.createElement('option');
-          option.value = toko.id_toko;
-          option.textContent = `${toko.id_toko} - ${toko.nama_toko}`;
-          filterTokoSelect.appendChild(option);
-        });
-        
-        console.log('✅ Dropdown toko diisi:', uniqueToko.length, 'toko UNIK');
-        
-        // 🔥 TANDAI SUDAH DI-SETUP
-        filterTokoSelect.setAttribute('data-setup-done', 'true');
-        
-      } else {
-        console.log('⚠️ Toko data not ready for filter');
-      }
-    }
-  } else {
-    if (filterTokoGroup) {
-      filterTokoGroup.style.display = 'none';
-      console.log('❌ Filter toko disembunyikan untuk level:', kasirInfo.levelAkses);
-    }
-  }
-  
-  // Load data menu untuk filter - DENGAN DEDUPLIKASI JUGA
-  if (filterMenuSelect) {
-    // 🔥 PERBAIKAN: CLEAR DULU SEBELUM ISI
-    filterMenuSelect.innerHTML = '<option value="">Semua Menu</option>';
-    
-    if (menuManagementData && menuManagementData.length > 0) {
-      const uniqueMenus = [...new Set(menuManagementData
-        .filter(menu => menu.status === 'Aktif')
-        .map(menu => menu.nama_menu))];
-      
-      uniqueMenus.forEach(menu => {
-        const option = document.createElement('option');
-        option.value = menu;
-        option.textContent = menu;
-        filterMenuSelect.appendChild(option);
-      });
-      
-      console.log('✅ Dropdown menu diisi:', uniqueMenus.length, 'menu UNIK');
-    } else {
-      console.log('⚠️ Menu data not ready for filter');
-    }
-  }
-}
-// Setup filter toggle dengan CSS yang benar
-function setupFilterToggle() {
-  const btnFilterToggle = document.getElementById('btnFilterToggle');
-  const filterContent = document.getElementById('filterContent');
-  
-  if (btnFilterToggle && filterContent) {
-    // Set initial state - visible
-    filterContent.style.display = 'block';
-    btnFilterToggle.classList.add('rotated');
-    
-    btnFilterToggle.addEventListener('click', () => {
-      const isVisible = filterContent.style.display !== 'none';
-      filterContent.style.display = isVisible ? 'none' : 'block';
-      btnFilterToggle.classList.toggle('rotated', !isVisible);
-      btnFilterToggle.textContent = isVisible ? '▶' : '▼';
-    });
-  }
-}
-
-// Setup table toggle
-function setupTableToggle() {
-  const btnToggleTable = document.getElementById('btnToggleTable');
-  const tableContainer = document.getElementById('tableContainer');
-  const tableIcon = btnToggleTable?.querySelector('.table-icon');
-  const tableText = btnToggleTable?.querySelector('.table-text');
-  
-  if (btnToggleTable && tableContainer) {
-    // Set initial state - hidden
-    tableContainer.style.display = 'none';
-    tableIcon.textContent = '⬇️';
-    tableText.textContent = 'Tampilkan Tabel';
-    
-    btnToggleTable.addEventListener('click', () => {
-      const isVisible = tableContainer.style.display !== 'none';
-      tableContainer.style.display = isVisible ? 'none' : 'block';
-      tableIcon.textContent = isVisible ? '⬇️' : '⬆️';
-      tableText.textContent = isVisible ? 'Tampilkan Tabel' : 'Sembunyikan Tabel';
-    });
-  }
-}
-
-// Load laporan dengan ANALITIK ITEM LARIS
-async function loadLaporanModern() {
-  try {
-    console.log('🚀 Memulai loadLaporanModern...');
-    
-    const startDate = document.getElementById('startDate').value;
-    const endDate = document.getElementById('endDate').value;
-    const filterToko = document.getElementById('filterTokoLaporan')?.value || '';
-    const filterMenu = document.getElementById('filterMenu')?.value || '';
-    
-    console.log('📊 Filter laporan:', { 
-      startDate, 
-      endDate, 
-      filterToko, 
-      filterMenu,
-      levelAkses: kasirInfo?.levelAkses,
-      idToko: kasirInfo?.idToko 
-    });
-    
-    // Validasi kasirInfo
-    if (!kasirInfo || !kasirInfo.idToko) {
-      showNotification('❌ Silakan login ulang! Session mungkin telah habis.', 'error');
-      return;
-    }
-    
-    // Update period text
-    const periodText = document.getElementById('laporanPeriodText');
-    if (periodText) {
-      const startText = startDate || 'Semua';
-      const endText = endDate || 'Semua';
-      periodText.textContent = `Periode: ${startText} s/d ${endText}`;
-    }
-    
-    // Show loading state
-    const topItemsList = document.getElementById('topItemsList');
-    const categoriesChart = document.getElementById('categoriesChart');
-    const btnLoadLaporan = document.getElementById('btnLoadLaporan');
-    
-    if (btnLoadLaporan) {
-      btnLoadLaporan.disabled = true;
-      btnLoadLaporan.innerHTML = '<span class="btn-icon">⏳</span> Memuat...';
-    }
-    
-    if (topItemsList) topItemsList.innerHTML = '<div class="loading-analytics">⏳ Memuat data...</div>';
-    if (categoriesChart) categoriesChart.innerHTML = '<div class="loading-analytics">⏳ Memuat data...</div>';
-    
-    // Prepare request data
-    const requestData = {
-      startDate: startDate,
-      endDate: endDate,
-      idToko: kasirInfo.idToko,
-      levelAkses: kasirInfo.levelAkses,
-      username: kasirInfo.username,
-      filterToko: filterToko,
-      filterMenu: filterMenu
-    };
-    
-    console.log('📨 Request data:', requestData);
-    
-    const data = await hybridFetch('/getLaporan', requestData);
-    
-    console.log('📈 Response laporan:', data);
-    
-    if (data && data.success) {
-      laporanData = data.data || [];
-      
-      // Render summary modern
-      renderSummaryModern(data.summary);
-      
-      // Render analytics modern
-      if (data.analytics) {
-        renderLaporanAnalyticsModern(data.analytics);
-      } else {
-        console.warn('⚠️ Tidak ada data analytics');
-        if (topItemsList) topItemsList.innerHTML = '<div class="loading-analytics">📊 Tidak ada data analitik</div>';
-        if (categoriesChart) categoriesChart.innerHTML = '<div class="loading-analytics">📊 Tidak ada data analitik</div>';
-      }
-      
-      // Render table
-      renderLaporanTableModern(laporanData);
-      
-      showNotification('Laporan berhasil dimuat', 'success');
-      console.log('✅ Laporan berhasil dimuat:', laporanData.length, 'records');
-      
-    } else {
-      const errorMsg = data?.message || 'Unknown error';
-      console.error('❌ Gagal memuat laporan:', errorMsg);
-      showNotification('Gagal memuat laporan: ' + errorMsg, 'error');
-    }
-  } catch (err) {
-    console.error('❌ Error loadLaporan:', err);
-    
-    // Show user-friendly error message
-    const errorMessage = err.message.includes('Failed to fetch') 
-      ? 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.'
-      : err.message;
-    
-    showNotification('Gagal memuat laporan: ' + errorMessage, 'error');
-    
-    // Reset UI on error
-    resetLaporanUI();
-  } finally {
-    // Reset button state
-    const btnLoadLaporan = document.getElementById('btnLoadLaporan');
-    if (btnLoadLaporan) {
-      btnLoadLaporan.disabled = false;
-      btnLoadLaporan.innerHTML = '<span class="btn-icon">📥</span> Muat Laporan';
-    }
-  }
-}
-
-// Function untuk render analytics laporan yang LENGKAP
-function renderLaporanAnalyticsModern(analytics) {
-  const topItemsList = document.getElementById('topItemsList');
-  const categoriesChart = document.getElementById('categoriesChart');
-  
-  if (!topItemsList || !categoriesChart) return;
-  
-  // Render top items
-  if (analytics.topItems && analytics.topItems.length > 0) {
-    let topItemsHTML = '';
-    analytics.topItems.slice(0, 5).forEach((item, index) => {
-      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '📦';
-      topItemsHTML += `
-        <div class="top-item">
-          <span class="item-rank">${medal}</span>
-          <span class="item-name">${item.nama}</span>
-          <span class="item-sales">${item.total_terjual}x</span>
-        </div>
-      `;
-    });
-    topItemsList.innerHTML = topItemsHTML;
-  } else {
-    topItemsList.innerHTML = '<div class="loading-analytics">Tidak ada data penjualan item</div>';
-  }
-  
-  // Render categories chart - DENGAN FALLBACK
-  if (analytics.topCategories && analytics.topCategories.length > 0) {
-    const maxSales = Math.max(...analytics.topCategories.map(cat => cat.total_terjual));
-    
-    let categoriesHTML = '';
-    analytics.topCategories.slice(0, 6).forEach(category => {
-      const percentage = maxSales > 0 ? (category.total_terjual / maxSales) * 100 : 0;
-      categoriesHTML += `
-        <div class="category-bar">
-          <span class="category-name">${category.kategori}</span>
-          <div class="category-bar-inner">
-            <div class="category-bar-fill" style="width: ${percentage}%"></div>
-          </div>
-          <span class="category-count">${category.total_terjual}</span>
-        </div>
-      `;
-    });
-    categoriesChart.innerHTML = categoriesHTML;
-  } else {
-    // Fallback: Tampilkan pesan bahwa data kategori tidak tersedia
-    categoriesChart.innerHTML = '<div class="loading-analytics">📊 Data kategori tidak tersedia</div>';
-  }
-}
-
-// Render summary modern
-function renderSummaryModern(summary) {
-  const summaryContainer = document.getElementById('laporanSummary');
-  if (!summaryContainer) return;
-  
-  if (!summary) {
-    summaryContainer.innerHTML = '';
-    return;
-  }
-  
-  summaryContainer.innerHTML = `
-    <div class="summary-card-modern">
-      <h3>🛒 Total Transaksi</h3>
-      <div class="value">${summary.totalTransaksi || 0}</div>
-    </div>
-    <div class="summary-card-modern">
-      <h3>💰 Total Pendapatan</h3>
-      <div class="value">Rp${formatRupiah(summary.totalPendapatan || 0)}</div>
-    </div>
-    <div class="summary-card-modern">
-      <h3>💵 Total Bayar</h3>
-      <div class="value">Rp${formatRupiah(summary.totalBayar || 0)}</div>
-    </div>
-    <div class="summary-card-modern">
-      <h3>🔄 Total Kembali</h3>
-      <div class="value">Rp${formatRupiah(summary.totalKembali || 0)}</div>
-    </div>
-  `;
-}
-
-// Render table modern yang sesuai dengan struktur data
-function renderLaporanTableModern(data) {
-  const tbody = document.getElementById('laporanBody');
-  if (!tbody) return;
-  
-  if (!data || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Tidak ada data transaksi</td></tr>';
-    return;
-  }
-  
-  let tableHTML = '';
-  data.forEach(item => {
-    const menu = item.item || '-';
-    const qty = item.jumlah || 1;
-    const tanggal = item.tanggal ? new Date(item.tanggal).toLocaleDateString('id-ID') : '-';
-    
-    tableHTML += `
-      <tr>
-        <td>${tanggal}</td>
-        <td>${item.id_transaksi || ''}</td>
-        <td>${menu}</td>
-        <td style="text-align:center">${qty}</td>
-        <td>Rp${formatRupiah(item.total || 0)}</td>
-        <td>${item.kasir || ''}</td>
-      </tr>
-    `;
-  });
-  
-  tbody.innerHTML = tableHTML;
-}
-
-// Reset UI laporan
-function resetLaporanUI() {
-  laporanData = [];
-  renderSummaryModern(null);
-  
-  const topItemsList = document.getElementById('topItemsList');
-  const categoriesChart = document.getElementById('categoriesChart');
-  if (topItemsList) topItemsList.innerHTML = '<div class="loading-analytics">❌ Gagal memuat data</div>';
-  if (categoriesChart) categoriesChart.innerHTML = '<div class="loading-analytics">❌ Gagal memuat data</div>';
-  
-  renderLaporanTableModern([]);
-}
-
-// Reset filter laporan
-function resetFilterLaporan() {
-  document.getElementById('startDate').value = '';
-  document.getElementById('endDate').value = '';
-  document.getElementById('filterMenu').value = '';
-  
-  // Reset filter toko hanya untuk OWNER
-  if (kasirInfo.levelAkses === 'OWNER') {
-    const filterToko = document.getElementById('filterTokoLaporan');
-    if (filterToko) filterToko.value = '';
-  }
-  
-  laporanData = [];
-  const tbody = document.getElementById('laporanBody');
-  if (tbody) tbody.innerHTML = '';
-  
-  const summaryContainer = document.getElementById('laporanSummary');
-  if (summaryContainer) summaryContainer.innerHTML = '';
-  
-  const topItemsList = document.getElementById('topItemsList');
-  if (topItemsList) topItemsList.innerHTML = '<div class="loading-analytics">Memuat data...</div>';
-  
-  const categoriesChart = document.getElementById('categoriesChart');
-  if (categoriesChart) categoriesChart.innerHTML = '<div class="loading-analytics">Memuat data...</div>';
-}
-
-// Export laporan PDF
-function exportLaporanPDF() {
-  if (laporanData.length === 0) {
-    showNotification('Tidak ada data laporan untuk di-export', 'warning');
-    return;
-  }
-
-  const printWindow = window.open('', '_blank');
-  const today = new Date().toLocaleDateString('id-ID');
-  
-  let tableRows = '';
-  laporanData.forEach(item => {
-    tableRows += `
-      <tr>
-        <td>${item.tanggal || ''}</td>
-        <td>${item.id_transaksi || ''}</td>
-        <td>${item.kasir || ''}</td>
-        <td>${item.item || ''}</td>
-        <td>${item.jumlah || ''}</td>
-        <td>Rp${formatRupiah(item.total || 0)}</td>
-      </tr>
-    `;
-  });
-
-  const totalPendapatan = laporanData.reduce((sum, item) => sum + (item.total || 0), 0);
-  
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Laporan Transaksi</title>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
-        h2 { color: #333; text-align: center; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #000; padding: 6px; text-align: left; }
-        th { background-color: #f0f0f0; }
-        .summary { margin: 15px 0; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; }
-        @media print {
-          body { margin: 0; }
-        }
-      </style>
-    </head>
-    <body>
-      <h2>Laporan Transaksi - ${kasirInfo.namaToko || 'TOKO'}</h2>
-      <p><strong>Tanggal Cetak:</strong> ${today}</p>
-      <p><strong>Periode:</strong> ${document.getElementById('startDate').value || 'Semua'} s/d ${document.getElementById('endDate').value || 'Semua'}</p>
-      
-      <div class="summary">
-        <strong>Ringkasan:</strong><br>
-        Total Transaksi: ${laporanData.length}<br>
-        Total Pendapatan: Rp${formatRupiah(totalPendapatan)}
-      </div>
-      
-      <table>
-        <thead>
-          <tr>
-            <th>Tanggal</th>
-            <th>ID Transaksi</th>
-            <th>Kasir</th>
-            <th>Item</th>
-            <th>Qty</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${tableRows}
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `);
-  
-  printWindow.document.close();
-  
-  setTimeout(() => {
-    printWindow.print();
-  }, 500);
-}
-
-// ==================== DEBUG FUNCTIONS ====================
-
-// Debug function untuk test laporan
-async function debugLaporan() {
-  console.group('🔧 DEBUG LAPORAN');
-  
-  try {
-    const testData = {
-      startDate: '2024-01-01',
-      endDate: '2024-12-31',
-      idToko: kasirInfo.idToko,
-      levelAkses: kasirInfo.levelAkses,
-      username: kasirInfo.username
-    };
-    
-    console.log('🧪 Testing endpoint /getLaporan dengan data:', testData);
-    
-    const response = await fetch(`${SCRIPT_URL}/getLaporan`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(testData)
-    });
-    
-    console.log('📡 Response status:', response.status);
-    
-    if (response.ok) {
-      const result = await response.json();
-      console.log('✅ Response success:', result.success);
-      console.log('📊 Data length:', result.data?.length);
-      console.log('🔍 Data structure:', result);
-    } else {
-      console.error('❌ HTTP Error:', response.status);
-      const errorText = await response.text();
-      console.error('📄 Error response:', errorText);
-    }
-    
-  } catch (error) {
-    console.error('💥 Fetch error:', error);
-  }
-  
-  console.groupEnd();
-}
-
-// Debug function untuk test filter
-function debugFilters() {
-  console.group('🔧 DEBUG FILTERS');
-  console.log('kasirInfo:', kasirInfo);
-  console.log('tokoManagementData length:', tokoManagementData?.length);
-  console.log('menuManagementData length:', menuManagementData?.length);
-  
-  const filterToko = document.getElementById('filterTokoLaporan');
-  const filterMenu = document.getElementById('filterMenu');
-  
-  if (filterToko) {
-    console.log('Filter Toko:', {
-      exists: true,
-      value: filterToko.value,
-      options: filterToko.options.length,
-      visible: filterToko.parentElement.style.display !== 'none'
-    });
-  } else {
-    console.log('Filter Toko: NOT FOUND');
-  }
-  
-  if (filterMenu) {
-    console.log('Filter Menu:', {
-      exists: true, 
-      value: filterMenu.value,
-      options: filterMenu.options.length
-    });
-  } else {
-    console.log('Filter Menu: NOT FOUND');
-  }
-  
-  console.groupEnd();
-}
-
-// ==================== PRINT STRUK FUNCTIONS ====================
-
-// 🔥 PERBAIKAN: printStruk dengan multiple payment support
-function printStruk() {
-  console.log('🚀 printStruk() dipanggil');
-  
-  const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
-  let bayar, kembali, paymentBreakdown = [];
-  
-  if (isMultiplePayment) {
-    // Multiple payment logic
-    bayar = calculateTotalPaid();
-    kembali = bayar - total;
-    
-    // Siapkan breakdown payment untuk struk
-    Object.keys(paymentMethods).forEach(method => {
-      if (paymentMethods[method] > 0) {
-        const methodNames = {
-          tunai: 'Tunai',
-          debit: 'Debit Card', 
-          ewallet: 'E-Wallet',
-          qris: 'QRIS'
-        };
-        const methodIcons = {
-          tunai: '💵',
-          debit: '💳',
-          ewallet: '📱', 
-          qris: '🔗'
-        };
-        
-        paymentBreakdown.push({
-          method: methodNames[method],
-          icon: methodIcons[method],
-          amount: paymentMethods[method]
-        });
-      }
-    });
-  } else {
-    // Single payment logic
-    const cashInput = document.getElementById('cashInput');
-    bayar = parseNumberFromString(cashInput.value);
-    kembali = bayar - total;
-    paymentBreakdown.push({
-      method: 'Tunai',
-      icon: '💵',
-      amount: bayar
-    });
-  }
-  
-  console.log('📊 Data transaksi:', { total, bayar, kembali, items: transaksi.length, paymentBreakdown });
-  
-  if (total === 0) {
-    showNotification('Tidak ada transaksi untuk dicetak!', 'warning');
-    return;
-  }
-
-  // Data untuk struk
-  const storeName = kasirInfo.namaToko || 'TOKO KITA';
-  const currentDate = new Date().toLocaleString('id-ID');
-  const cashierName = kasirInfo.namaKasir || 'Kasir';
-  
-  console.log('🏪 Data toko:', { storeName, currentDate, cashierName });
-
-  // Buat HTML untuk struk
-  let strukHTML = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Struk ${storeName}</title>
-      <meta charset="utf-8">
-      <style>
-        /* RESET DAN PRINT STYLES */
-        * {
-          margin: 0 !important;
-          padding: 0 !important;
-          box-sizing: border-box !important;
-          font-family: 'Courier New', monospace !important;
-        }
-        
-        body {
-          width: 80mm !important;
-          max-width: 80mm !important;
-          min-height: 100mm !important;
-          margin: 2mm !important;
-          padding: 0 !important;
-          font-size: 12px !important;
-          line-height: 1.2 !important;
-          color: #000 !important;
-          background: #fff !important;
-        }
-        
-        .struk-content {
-          width: 100% !important;
-          max-width: 76mm !important;
-          margin: 0 auto !important;
-          padding: 1mm !important;
-        }
-        
-        .struk-header {
-          text-align: center !important;
-          margin-bottom: 2mm !important;
-          border-bottom: 1px dashed #000 !important;
-          padding-bottom: 1mm !important;
-        }
-        
-        .struk-header h2 {
-          font-size: 14px !important;
-          font-weight: bold !important;
-          margin: 0 !important;
-          text-transform: uppercase;
-        }
-        
-        .struk-info {
-          text-align: center !important;
-          font-size: 10px !important;
-          margin-bottom: 2mm !important;
-        }
-        
-        .struk-table {
-          width: 100% !important;
-          border-collapse: collapse !important;
-          margin: 2mm 0 !important;
-          font-size: 11px !important;
-        }
-        
-        .struk-table th,
-        .struk-table td {
-          padding: 0.5mm 0 !important;
-          text-align: left !important;
-          border: none !important;
-          vertical-align: top;
-        }
-        
-        .struk-table th:nth-child(2),
-        .struk-table td:nth-child(2),
-        .struk-table th:nth-child(3),
-        .struk-table td:nth-child(3) {
-          text-align: right !important;
-          width: 25% !important;
-        }
-        
-        .struk-table tfoot {
-          border-top: 1px dashed #000 !important;
-          margin-top: 2mm !important;
-        }
-        
-        .struk-table tfoot td {
-          padding-top: 1mm !important;
-          font-weight: bold !important;
-        }
-        
-        .payment-breakdown {
-          margin: 2mm 0 !important;
-          padding-top: 1mm !important;
-          border-top: 1px dashed #000 !important;
-          font-size: 10px !important;
-        }
-        
-        .payment-method {
-          display: flex !important;
-          justify-content: space-between !important;
-          margin-bottom: 0.5mm !important;
-        }
-        
-        .struk-footer {
-          text-align: center !important;
-          margin-top: 3mm !important;
-          padding-top: 1mm !important;
-          border-top: 1px dashed #000 !important;
-          font-size: 10px !important;
-          font-style: italic;
-        }
-        
-        .item-name {
-          word-break: break-word;
-          max-width: 45mm;
-        }
-        
-        @page {
-          size: auto;
-          margin: 2mm;
-        }
-        
-        @media print {
-          body {
-            margin: 0 !important;
-            padding: 2mm !important;
-          }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="struk-content">
-        <div class="struk-header">
-          <h2>${storeName}</h2>
-        </div>
-        
-        <div class="struk-info">
-          <div>${currentDate}</div>
-          <div>Kasir: ${cashierName}</div>
-        </div>
-        
-        <table class="struk-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Harga</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-  `;
-  
-  // Tambahkan items
-  transaksi.forEach(item => {
-    const nama = item.nama.length > 20 ? item.nama.substring(0, 20) + '...' : item.nama;
-    strukHTML += `
-      <tr>
-        <td class="item-name">${nama} (${item.jumlah})</td>
-        <td>${formatRupiah(item.harga)}</td>
-        <td>${formatRupiah(item.subtotal)}</td>
-      </tr>
-    `;
-  });
-  
-  // Tambahkan total
-  strukHTML += `
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="2">Total</td>
-              <td>${formatRupiah(total)}</td>
-            </tr>
-            <tr>
-              <td colspan="2">Bayar</td>
-              <td>${formatRupiah(bayar)}</td>
-            </tr>
-            <tr>
-              <td colspan="2">Kembali</td>
-              <td>${formatRupiah(kembali)}</td>
-            </tr>
-          </tfoot>
-        </table>
-  `;
-  
-  // 🔥 TAMBAHKAN PAYMENT BREAKDOWN JIKA MULTIPLE PAYMENT
-  if (paymentBreakdown.length > 1) {
-    strukHTML += `
-        <div class="payment-breakdown">
-          <div style="text-align:center; margin-bottom:1mm; font-weight:bold">Metode Pembayaran:</div>
-    `;
-    
-    paymentBreakdown.forEach(payment => {
-      strukHTML += `
-          <div class="payment-method">
-            <span>${payment.icon} ${payment.method}</span>
-            <span>${formatRupiah(payment.amount)}</span>
-          </div>
-      `;
-    });
-    
-    strukHTML += `</div>`;
-  }
-  
-  strukHTML += `
-        <div class="struk-footer">
-          ${currentSettings.Footer_Struk || 'Terima Kasih'}
-        </div>
-      </div>
-      
-      <script>
-        // Auto print dan close
-        window.onload = function() {
-          setTimeout(function() {
-            window.print();
-            setTimeout(function() {
-              window.close();
-            }, 500);
-          }, 300);
-        };
-        
-        // Fallback manual close
-        document.addEventListener('keydown', function(e) {
-          if (e.key === 'Escape') {
-            window.close();
-          }
-        });
-      </script>
-    </body>
-    </html>
-  `;
-  
-  console.log('📝 Struk HTML generated, length:', strukHTML.length);
-  
-  // Buka window baru untuk print
-  const printWindow = window.open('', '_blank', 'width=80mm,height=200mm');
-  if (!printWindow) {
-    showNotification('Popup diblokir! Izinkan popup untuk mencetak struk.', 'error');
-    return;
-  }
-  
-  printWindow.document.write(strukHTML);
-  printWindow.document.close();
-  
-  console.log('✅ Struk window opened successfully');
-}
-// ==================== TRANSAKSI & PRINT ====================
-
-// Selesaikan transaksi dengan update stok
-async function selesaikanTransaksi() {
-  if (!transaksi.length) {
-    showNotification('Belum ada pesanan', 'warning');
-    return;
-  }
-  
-  const total = transaksi.reduce((s, it) => s + it.subtotal, 0);
-  let bayar, kembali, paymentData;
-  
-  if (isMultiplePayment) {
-    // Multiple payment logic
-    bayar = calculateTotalPaid();
-    kembali = bayar - total;
-    paymentData = {
-      isMultiple: true,
-      methods: { ...paymentMethods },
-      totalPaid: bayar
-    };
-  } else {
-    // Single payment logic
-    const cashInput = document.getElementById('cashInput');
-    bayar = parseNumberFromString(cashInput.value);
-    kembali = bayar - total;
-    paymentData = {
-      isMultiple: false,
-      methods: { tunai: bayar },
-      totalPaid: bayar
-    };
-  }
-  
-  // Validasi pembayaran
-  if (bayar < total) {
-    showNotification('Jumlah bayar kurang dari total!', 'warning');
-    return;
-  }
-  
-  const konfirmasi = confirm(
-    `Total: Rp ${formatRupiah(total)}\n` +
-    `Bayar: Rp ${formatRupiah(bayar)}\n` +
-    `Kembali: Rp ${formatRupiah(kembali)}\n\n` +
-    `Lanjutkan transaksi?`
-  );
-  
-  if (!konfirmasi) return;
-  
-  try {
-    const data = await hybridFetch('/saveTransaksi', {
-      transaksi: transaksi,
-      total: total,
-      idToko: kasirInfo.idToko,
-      kasir: kasirInfo.namaKasir || 'Kasir',
-      bayar: bayar,
-      kembali: kembali,
-      paymentData: paymentData  // 🔥 KIRIM DATA PAYMENT
-    });
-    
-    if (data && data.success) {
-      printStruk();
-      
-      setTimeout(() => {
-        // Reset transaksi dan payment
-        transaksi = [];
-        resetPaymentMethods();
-        
-        renderTransaksi();
-        document.getElementById('cashInput').value = '0';
-        document.getElementById('uangKembali').textContent = '0';
-        
-        // Kembali ke single payment mode jika sedang di multiple
-        if (isMultiplePayment) {
-          togglePaymentMode();
-        }
-        
-        clearCache();
-        loadMenu();
-        showNotification('Transaksi berhasil disimpan!', 'success');
-      }, 1000);
-      
-    } else {
-      showNotification('Gagal simpan transaksi: ' + (data.message || 'Unknown error'), 'error');
-    }
-  } catch(err) {
-    showNotification('Gagal mengirim data ke server: ' + err.message, 'error');
-  }
-}
-
-// 🔥 FUNCTION BARU: Reset payment methods
-function resetPaymentMethods() {
-  paymentMethods = {
-    tunai: 0,
-    debit: 0,
-    ewallet: 0, 
-    qris: 0
-  };
-}
-// ==================== SETTING FUNCTIONS MODERN ====================
+// ==================== SETTING FUNCTIONS ====================
 
 // Load setting dengan local storage fallback
 async function loadSetting() {
@@ -3476,7 +3327,7 @@ async function loadSetting() {
   }
 }
 
-// 🔥 FUNGSI BARU: Default settings
+// Default settings
 function getDefaultSettings() {
   return {
     Theme: 'dark',
@@ -3509,7 +3360,7 @@ function renderSetting(settings) {
   document.getElementById('settingStrukHeader').value = settings.StrukHeader || '';
   document.getElementById('settingAutoPrint').checked = settings.AutoPrint === 'true';
   
-  // 🔥 NEW: Font & Layout settings
+  // Font & Layout settings
   document.getElementById('settingFontFamily').value = settings.FontFamily || 'default';
   document.getElementById('settingFontSize').value = settings.FontSize || 'normal';
   document.getElementById('settingLayoutMode').value = settings.LayoutMode || 'comfortable';
@@ -3534,7 +3385,7 @@ async function saveSetting() {
       StrukFontSize: document.getElementById('settingStrukFontSize').value,
       StrukHeader: document.getElementById('settingStrukHeader').value,
       AutoPrint: document.getElementById('settingAutoPrint').checked.toString(),
-      // 🔥 NEW: Font & Layout settings
+      // Font & Layout settings
       FontFamily: document.getElementById('settingFontFamily').value,
       FontSize: document.getElementById('settingFontSize').value,
       LayoutMode: document.getElementById('settingLayoutMode').value,
@@ -3605,7 +3456,7 @@ function initializeEventListeners() {
   // Setup tab navigation
   setupTabNavigation();
 
-  // 🔥 SETUP SUB TAB NAVIGATION
+  // SETUP SUB TAB NAVIGATION
   setupSubTabNavigation();
   
   // Setup transaction event delegation
@@ -3622,6 +3473,9 @@ function initializeEventListeners() {
   // Setup global error handling
   setupGlobalErrorHandling();
   
+  // Setup multiple payment system
+  setupMultiplePaymentInputs();
+  
   // Test koneksi saat startup
   setTimeout(testConnection, 2000);
 
@@ -3635,7 +3489,7 @@ function initializeEventListeners() {
   if (startDate) startDate.value = formatDateForInput(oneWeekAgo);
   if (endDate) endDate.value = formatDateForInput(today);
 
-  // 🔥 MULTIPLE PAYMENT EVENT LISTENERS
+  // MULTIPLE PAYMENT EVENT LISTENERS
   const btnPaymentToggle = document.getElementById('btnPaymentToggle');
   const btnClosePayment = document.getElementById('btnClosePaymentH');
   
@@ -3646,9 +3500,6 @@ function initializeEventListeners() {
   if (btnClosePayment) {
     btnClosePayment.addEventListener('click', togglePaymentMode);
   }
-  
-  // Setup multiple payment inputs
-  setupMultiplePaymentInputs();
 
   // Login handler dengan hybrid system
   const loginBtn = document.getElementById('loginBtn');
@@ -3686,7 +3537,7 @@ function initializeEventListeners() {
           // Simpan session
           localStorage.setItem('kasirInfo', JSON.stringify(kasirInfo));
           
-          // 🔥 Setup filters setelah login berhasil
+          // Setup filters setelah login berhasil
           setTimeout(() => {
             setupLaporanFilters();
             console.log('✅ Laporan filters setup after login');
@@ -3884,7 +3735,7 @@ function initializeEventListeners() {
     });
   }
 
-  // 🔥 NEW: Font & Layout setting handlers
+  // Font & Layout setting handlers
   const settingFontFamily = document.getElementById('settingFontFamily');
   const settingFontSize = document.getElementById('settingFontSize');
   const settingLayoutMode = document.getElementById('settingLayoutMode');
@@ -3948,6 +3799,7 @@ function initializeEventListeners() {
     loadSetting();
   }
 }
+
 // Initialize aplikasi saat DOM loaded
 document.addEventListener('DOMContentLoaded', () => {
   initializeEventListeners();
@@ -3967,7 +3819,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const namaToko = document.getElementById('namaToko');
         if (namaToko) namaToko.innerText = kasirInfo.namaToko || 'Aplikasi Kasir';
         
-        // 🔥 Setup filters setelah session restore
+        // Setup filters setelah session restore
         setTimeout(() => {
           setupLaporanFilters();
           console.log('✅ Laporan filters setup after session restore');
@@ -3987,31 +3839,3 @@ function updateKasirInfo(newInfo) {
   kasirInfo = newInfo;
   localStorage.setItem('kasirInfo', JSON.stringify(newInfo));
 }
-
-// Setup Sub Tab Navigation
-function setupSubTabNavigation() {
-  const subtabBtns = document.querySelectorAll('.subtab-btn');
-  const subtabContents = document.querySelectorAll('.subtab-content');
-  
-  subtabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetSubtab = btn.dataset.subtab;
-      
-      // Update active button
-      subtabBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      
-      // Show target content
-      subtabContents.forEach(content => {
-        content.classList.remove('active');
-        if (content.dataset.subtab === targetSubtab) {
-          content.classList.add('active');
-        }
-      });
-    });
-  });
-
-}
-
-
-
