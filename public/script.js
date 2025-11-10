@@ -3502,60 +3502,59 @@ function initializeEventListeners() {
   }
 
   // Login handler dengan hybrid system
-  const loginBtn = document.getElementById('loginBtn');
-  if (loginBtn) {
-    loginBtn.addEventListener('click', async () => {
-      const username = document.getElementById('username').value.trim();
-      const password = document.getElementById('password').value.trim();
-      const loginMessage = document.getElementById('loginMessage');
+const loginBtn = document.getElementById('loginBtn');
+if (loginBtn) {
+  loginBtn.addEventListener('click', async () => {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const loginMessage = document.getElementById('loginMessage');
+    
+    if (!username || !password) {
+      if (loginMessage) loginMessage.innerText = 'Username dan password harus diisi';
+      return;
+    }
+    
+    if (loginMessage) loginMessage.innerText = 'Memeriksa...';
+    
+    try {
+      const data = await hybridFetch('/login', { username, password });
       
-      if (!username || !password) {
-        if (loginMessage) loginMessage.innerText = 'Username dan password harus diisi';
-        return;
-      }
-      
-      if (loginMessage) loginMessage.innerText = 'Memeriksa...';
-      
-      try {
-        const data = await hybridFetch('/login', { username, password });
+      if (data && data.success) {
+        kasirInfo = data;
+        console.log('Login Success - User Info:', kasirInfo);
         
-        if (data && data.success) {
-          kasirInfo = data;
-          console.log('Login Success - User Info:', kasirInfo);
-          
-          const namaToko = document.getElementById('namaToko');
-          if (namaToko) namaToko.innerText = kasirInfo.namaToko || 'Aplikasi Kasir';
-          
-          document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-          document.getElementById('kasirPage').classList.add('active');
-          
-          showTabsBasedOnLevel();
-          await loadMenu();
-          await loadSetting();
-          if (loginMessage) loginMessage.innerText = '';
-          
-          // Simpan session
-          localStorage.setItem('kasirInfo', JSON.stringify(kasirInfo));
-          
-          // Setup filters setelah login berhasil
-          setTimeout(() => {
-            setupLaporanFilters();
-            console.log('✅ Laporan filters setup after login');
-          }, 500);
-          
-          showNotification(`Selamat datang, ${kasirInfo.namaKasir}!`, 'success');
-        } else {
-          if (loginMessage) loginMessage.innerText = 'Login gagal: ' + (data.message || 'Unknown error');
-          showNotification('Login gagal: username atau password salah', 'error');
-        }
-      } catch(err) {
-        if (loginMessage) loginMessage.innerText = 'Gagal terhubung ke server: ' + err.message;
-        showNotification('Gagal terhubung ke server', 'error');
-        console.error('Login error:', err);
+        const namaToko = document.getElementById('namaToko');
+        if (namaToko) namaToko.innerText = kasirInfo.namaToko || 'Aplikasi Kasir';
+        
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('kasirPage').classList.add('active');
+        
+        showTabsBasedOnLevel();
+        await loadMenu();
+        await loadSetting();
+        if (loginMessage) loginMessage.innerText = '';
+        
+        // Simpan session
+        localStorage.setItem('kasirInfo', JSON.stringify(kasirInfo));
+        
+        // Setup filters setelah login berhasil
+        setTimeout(() => {
+          setupLaporanFilters();
+          console.log('✅ Laporan filters setup after login');
+        }, 500);
+        
+        showNotification(`Selamat datang, ${kasirInfo.namaKasir}!`, 'success');
+      } else {
+        if (loginMessage) loginMessage.innerText = 'Login gagal: ' + (data.message || 'Unknown error');
+        showNotification('Login gagal: username atau password salah', 'error');
       }
-    });
-  }
-
+    } catch(err) {
+      if (loginMessage) loginMessage.innerText = 'Gagal terhubung ke server: ' + err.message;
+      showNotification('Gagal terhubung ke server', 'error');
+      console.error('Login error:', err);
+    }
+  });
+}
   // Logout handler
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
@@ -3774,16 +3773,15 @@ function initializeEventListeners() {
     });
   }
 
-  // Enter key for login
-  const passwordInput = document.getElementById('password');
-  if (passwordInput) {
-    passwordInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        document.getElementById('loginBtn').click();
-      }
-    });
-  }
-
+ // Enter key for login
+const passwordInput = document.getElementById('password');
+if (passwordInput) {
+  passwordInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      document.getElementById('loginBtn').click();
+    }
+  });
+}
   // Enter key untuk cash input
   if (cashInput) {
     cashInput.addEventListener('keydown', function(e) {
@@ -3839,3 +3837,4 @@ function updateKasirInfo(newInfo) {
   kasirInfo = newInfo;
   localStorage.setItem('kasirInfo', JSON.stringify(newInfo));
 }
+
