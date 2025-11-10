@@ -1,7 +1,8 @@
+// server.js - HYBRID SYSTEM WITH SUPABASE FIX
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import pool from './database.js';  // Import dari database.js
+import pool from './database.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -29,7 +30,7 @@ app.use(cors({
 // Handle preflight requests
 app.options('*', cors());
 
-// Serve static files (untuk frontend)
+// Serve static files
 app.use(express.static(join(__dirname, 'public')));
 
 // Debug middleware
@@ -41,6 +42,23 @@ app.use((req, res, next) => {
   next();
 });
 
+// ==================== DATABASE STATUS SYSTEM ====================
+let isDatabaseConnected = false;
+
+// Function to check database status
+async function checkDatabaseStatus() {
+  try {
+    const result = await pool.query('SELECT 1 as status');
+    isDatabaseConnected = true;
+    console.log('✅ Database status: CONNECTED');
+    return true;
+  } catch (error) {
+    isDatabaseConnected = false;
+    console.log('❌ Database status: DISCONNECTED -', error.message);
+    return false;
+  }
+}
+
 // ==================== HYBRID SYSTEM FUNCTIONS ====================
 
 // Function untuk sync data ke Google Sheets dengan timeout
@@ -49,7 +67,7 @@ async function syncToGoogleSheets(action, data) {
     console.log(`🔄 Syncing to Google Sheets: ${action}`);
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     
     const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: 'POST',
@@ -80,6 +98,37 @@ async function syncToGoogleSheets(action, data) {
       console.warn(`⚠️ Google Sheets sync error: ${action}`, error.message);
     }
     return null;
+  }
+}
+
+// Function untuk fallback ke Google Sheets ketika database down
+async function hybridFallback(action, data, res) {
+  try {
+    console.log(`🔄 Using Google Sheets fallback for: ${action}`);
+    
+    const result = await syncToGoogleSheets(action, data);
+    
+    if (result) {
+      return res.json({
+        success: true,
+        message: `Operation completed via Google Sheets (Database offline)`,
+        data: result.data || [],
+        fallback: true
+      });
+    } else {
+      return res.status(503).json({
+        success: false,
+        message: 'Both database and fallback system are unavailable',
+        error: 'Service temporarily unavailable'
+      });
+    }
+  } catch (error) {
+    console.error(`💥 Hybrid fallback error: ${error.message}`);
+    return res.status(503).json({
+      success: false,
+      message: 'Fallback system error',
+      error: error.message
+    });
   }
 }
 
@@ -120,7 +169,7 @@ async function kirimTelegram(idTransaksi, kasir, idToko, total, bayar, kembali, 
       parse_mode: "Markdown"
     };
 
-    // Kirim telegram (background) - menggunakan fetch
+    // Kirim telegram (background)
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -160,17 +209,17 @@ async function getKasirName(username) {
 function handleDatabaseError(error, res) {
   console.error('Database Error:', error);
   
-  if (error.code === '23505') { // Unique violation
+  if (error.code === '23505') {
     return res.status(409).json({
       success: false,
       message: 'Data already exists'
     });
-  } else if (error.code === '23503') { // Foreign key violation
+  } else if (error.code === '23503') {
     return res.status(400).json({
       success: false,
       message: 'Referenced data not found'
     });
-  } else if (error.code === '28P01') { // Authentication failure
+  } else if (error.code === '28P01') {
     return res.status(500).json({
       success: false,
       message: 'Database authentication failed'
@@ -204,18 +253,20 @@ app.get('/api/test-db', async (req, res) => {
     res.json({ 
       success: true, 
       message: 'Database is working!',
-      userCount: result.rows[0].count
+      userCount: result.rows[0].count,
+      database: 'CONNECTED'
     });
   } catch (error) {
     console.error('Database test error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Database error: ' + error.message 
+      message: 'Database error: ' + error.message,
+      database: 'DISCONNECTED'
     });
   }
 });
 
-// Health check endpoint
+// Health check endpoint dengan status database
 app.get('/api/health', async (req, res) => {
   try {
     const dbResult = await pool.query('SELECT 1 as status');
@@ -227,6 +278,7 @@ app.get('/api/health', async (req, res) => {
       data: {
         server: 'healthy',
         database: dbStatus,
+        hybrid_system: GOOGLE_SCRIPT_URL ? 'available' : 'unavailable',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: process.env.NODE_ENV || 'development'
@@ -236,7 +288,8 @@ app.get('/api/health', async (req, res) => {
     res.status(503).json({
       success: false,
       message: 'Service unavailable',
-      error: error.message
+      error: error.message,
+      database: 'unhealthy'
     });
   }
 });
@@ -260,10 +313,8 @@ app.get('/api/debug-env', async (req, res) => {
         connected: true,
         time: dbResult.rows[0].time
       },
-      raw: {
-        PG_HOST: process.env.PG_HOST,
-        PG_USER: process.env.PG_USER,
-        PG_DATABASE: process.env.PG_DATABASE
+      hybrid_system: {
+        google_sheets_url: GOOGLE_SCRIPT_URL ? '✅ Configured' : '❌ Not configured'
       }
     });
   } catch (error) {
@@ -281,16 +332,14 @@ app.get('/api/debug-env', async (req, res) => {
         connected: false,
         error: error.message
       },
-      raw: {
-        PG_HOST: process.env.PG_HOST,
-        PG_USER: process.env.PG_USER,
-        PG_DATABASE: process.env.PG_DATABASE
+      hybrid_system: {
+        google_sheets_url: GOOGLE_SCRIPT_URL ? '✅ Configured' : '❌ Not configured'
       }
     });
   }
 });
 
-// Test endpoint untuk hybrid system - BISA DIAKSES VIA GET
+// Test endpoint untuk hybrid system
 app.get('/api/test-hybrid', async (req, res) => {
   try {
     console.log('🧪 Testing hybrid connection to Google Sheets...');
@@ -334,77 +383,19 @@ app.get('/api/test-hybrid', async (req, res) => {
   }
 });
 
-// Test endpoint untuk simulasi transaksi hybrid
-app.get('/api/test-transaction-hybrid', async (req, res) => {
-  try {
-    console.log('🧪 Testing hybrid transaction...');
-    
-    const testTransaction = {
-      action: 'saveTransaksi',
-      transaksi: [
-        {
-          id: 'M001',
-          nama: 'TEST PRODUCT 1',
-          harga: 10000,
-          jumlah: 2,
-          subtotal: 20000
-        },
-        {
-          id: 'M002', 
-          nama: 'TEST PRODUCT 2',
-          harga: 15000,
-          jumlah: 1,
-          subtotal: 15000
-        }
-      ],
-      total: 35000,
-      idToko: 'T001',
-      kasir: 'Test Kasir',
-      bayar: 50000,
-      kembali: 15000
-    };
-    
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(testTransaction)
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      console.log('✅ Hybrid transaction test SUCCESS:', result);
-      res.json({ 
-        success: true, 
-        message: '✅ TRANSACTION SYNC WORKING! Data saved to Google Sheets.',
-        googleSheetsResponse: result,
-        testData: testTransaction
-      });
-    } else {
-      console.log('❌ Hybrid transaction test FAILED:', response.status);
-      res.json({ 
-        success: false, 
-        message: '❌ Transaction sync FAILED',
-        status: response.status
-      });
-    }
-  } catch (error) {
-    console.error('💥 Hybrid transaction test ERROR:', error);
-    res.json({ 
-      success: false, 
-      message: '💥 Transaction test ERROR: ' + error.message
-    });
-  }
-});
-
 // ==================== AUTH & USER ENDPOINTS ====================
 
-// 1. LOGIN
+// 1. LOGIN dengan hybrid fallback
 app.post('/api/login', async (req, res) => {
   try {
     console.log('Login attempt:', req.body);
     const { username, password } = req.body;
+    
+    // Check database status first
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('login', { username, password }, res);
+    }
     
     const result = await pool.query(
       'SELECT * FROM users WHERE username = $1 AND password = $2 AND status = $3',
@@ -438,14 +429,26 @@ app.post('/api/login', async (req, res) => {
     }
   } catch (error) {
     console.error('Login error:', error);
+    
+    // Fallback to Google Sheets jika database error
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('login', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
 
-// 2. GET USER MANAGEMENT
+// 2. GET USER MANAGEMENT dengan deduplikasi
 app.post('/api/getUserManagement', async (req, res) => {
   try {
     const { idToko, levelAkses, username } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('getUserManagement', req.body, res);
+    }
     
     let query = `
       SELECT username, nama_kasir, id_toko, nama_toko, status, level_akses, terakhir_login 
@@ -454,7 +457,6 @@ app.post('/api/getUserManagement', async (req, res) => {
     `;
     let params = [];
     
-    // Filter berdasarkan level akses
     if (levelAkses === 'ADMIN') {
       query += ' AND id_toko = $1';
       params.push(idToko);
@@ -462,11 +464,10 @@ app.post('/api/getUserManagement', async (req, res) => {
       query += ' AND username = $1';
       params.push(username);
     }
-    // OWNER lihat semua, tidak perlu filter
-    
+
     const usersResult = await pool.query(query, params);
     
-    // Get toko data - 🔥 DIPERBAIKI: Hilangkan duplikat
+    // Get toko data dengan deduplikasi
     const tokoResult = await pool.query(`
       SELECT 
         id_toko, 
@@ -488,6 +489,11 @@ app.post('/api/getUserManagement', async (req, res) => {
     
   } catch (error) {
     console.error('Get user management error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('getUserManagement', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -496,6 +502,12 @@ app.post('/api/getUserManagement', async (req, res) => {
 app.post('/api/createUser', async (req, res) => {
   try {
     const { username, password, namaUser, toko, levelAkses, status, levelAksesCurrent, idToko } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('createUser', req.body, res);
+    }
     
     // Permission check
     if (levelAksesCurrent === 'KASIR') {
@@ -539,6 +551,11 @@ app.post('/api/createUser', async (req, res) => {
     
   } catch (error) {
     console.error('Create user error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('createUser', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -547,6 +564,12 @@ app.post('/api/createUser', async (req, res) => {
 app.post('/api/updateUser', async (req, res) => {
   try {
     const { username, namaUser, toko, levelAkses, status, levelAksesCurrent, idToko } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('updateUser', req.body, res);
+    }
     
     // Permission check
     if (levelAksesCurrent === 'KASIR') {
@@ -572,6 +595,11 @@ app.post('/api/updateUser', async (req, res) => {
     
   } catch (error) {
     console.error('Update user error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('updateUser', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -580,6 +608,12 @@ app.post('/api/updateUser', async (req, res) => {
 app.post('/api/deleteUser', async (req, res) => {
   try {
     const { username, levelAksesCurrent } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('deleteUser', req.body, res);
+    }
     
     // Permission check
     if (levelAksesCurrent === 'KASIR') {
@@ -596,6 +630,11 @@ app.post('/api/deleteUser', async (req, res) => {
     
   } catch (error) {
     console.error('Delete user error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('deleteUser', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -604,6 +643,12 @@ app.post('/api/deleteUser', async (req, res) => {
 app.post('/api/resetPassword', async (req, res) => {
   try {
     const { username, newPassword, levelAksesCurrent, currentUsername } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('resetPassword', req.body, res);
+    }
     
     // Permission check
     if (levelAksesCurrent === 'KASIR' && username !== currentUsername) {
@@ -620,17 +665,28 @@ app.post('/api/resetPassword', async (req, res) => {
     
   } catch (error) {
     console.error('Reset password error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('resetPassword', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
 
 // ==================== MENU ENDPOINTS ====================
 
-// 7. GET MENU (untuk transaksi)
+// 7. GET MENU (untuk transaksi) dengan hybrid fallback
 app.post('/api/getMenu', async (req, res) => {
   try {
     console.log('Get menu request:', req.body);
     const { idToko, levelAkses } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('getMenu', req.body, res);
+    }
     
     let query = `
       SELECT id_menu as id, nama_menu as nama, harga, kategori, stok 
@@ -647,7 +703,6 @@ app.post('/api/getMenu', async (req, res) => {
       query += ' AND (id_toko = $1 OR id_toko = $2)';
       params = [idToko, 'ALL'];
     }
-    // OWNER lihat semua, tidak perlu filter
 
     console.log('Executing query:', query, 'with params:', params);
     const result = await pool.query(query, params);
@@ -660,6 +715,11 @@ app.post('/api/getMenu', async (req, res) => {
     });
   } catch (error) {
     console.error('Get menu error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('getMenu', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -668,6 +728,12 @@ app.post('/api/getMenu', async (req, res) => {
 app.post('/api/getMenuManagement', async (req, res) => {
   try {
     const { idToko, levelAkses } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('getMenuManagement', req.body, res);
+    }
     
     let query = `
       SELECT id_menu, nama_menu, kategori, harga, stok, id_toko, status 
@@ -693,14 +759,25 @@ app.post('/api/getMenuManagement', async (req, res) => {
     });
   } catch (error) {
     console.error('Get menu management error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('getMenuManagement', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
 
-// 9. CREATE MENU
+// 9. CREATE MENU dengan hybrid sync
 app.post('/api/createMenu', async (req, res) => {
   try {
     const { idToko, namaMenu, kategori, harga, stok, targetToko, levelAkses } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('createMenu', req.body, res);
+    }
     
     // Permission check
     if (levelAkses === 'KASIR') {
@@ -755,6 +832,11 @@ app.post('/api/createMenu', async (req, res) => {
     
   } catch (error) {
     console.error('Create menu error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('createMenu', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -763,6 +845,12 @@ app.post('/api/createMenu', async (req, res) => {
 app.post('/api/updateMenu', async (req, res) => {
   try {
     const { idMenu, namaMenu, kategori, harga, stok, status, targetToko, levelAkses } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('updateMenu', req.body, res);
+    }
     
     // Permission check
     if (levelAkses === 'KASIR') {
@@ -784,6 +872,11 @@ app.post('/api/updateMenu', async (req, res) => {
     
   } catch (error) {
     console.error('Update menu error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('updateMenu', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -792,6 +885,12 @@ app.post('/api/updateMenu', async (req, res) => {
 app.post('/api/deleteMenu', async (req, res) => {
   try {
     const { idMenu, idToko, levelAkses } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('deleteMenu', req.body, res);
+    }
     
     // Permission check
     if (levelAkses === 'KASIR') {
@@ -807,23 +906,34 @@ app.post('/api/deleteMenu', async (req, res) => {
     
   } catch (error) {
     console.error('Delete menu error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('deleteMenu', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
 
 // ==================== TOKO ENDPOINTS ====================
 
-// 12. GET TOKO - 🔥 DIPERBAIKI: HILANGKAN DUPLIKAT
+// 12. GET TOKO dengan deduplikasi
 app.post('/api/getToko', async (req, res) => {
   try {
     const { levelAkses } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('getToko', req.body, res);
+    }
     
     // Validasi permission
     if (levelAkses === 'KASIR') {
       return res.status(403).json({ success: false, message: "Tidak memiliki akses" });
     }
     
-    // 🔥 PERBAIKAN: Gunakan GROUP BY untuk pastikan id_toko benar-benar unik
+    // Query dengan GROUP BY untuk pastikan id_toko unik
     const result = await pool.query(`
       SELECT 
         id_toko, 
@@ -846,6 +956,11 @@ app.post('/api/getToko', async (req, res) => {
     
   } catch (error) {
     console.error('Get toko error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('getToko', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -854,6 +969,12 @@ app.post('/api/getToko', async (req, res) => {
 app.post('/api/createToko', async (req, res) => {
   try {
     const { namaToko, alamat, telepon, levelAkses } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('createToko', req.body, res);
+    }
     
     // Permission check - hanya OWNER
     if (levelAkses !== 'OWNER') {
@@ -882,6 +1003,11 @@ app.post('/api/createToko', async (req, res) => {
     
   } catch (error) {
     console.error('Create toko error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('createToko', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -890,6 +1016,12 @@ app.post('/api/createToko', async (req, res) => {
 app.post('/api/updateToko', async (req, res) => {
   try {
     const { idToko, namaToko, alamat, telepon, status, levelAkses } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('updateToko', req.body, res);
+    }
     
     // Permission check - hanya OWNER
     if (levelAkses !== 'OWNER') {
@@ -912,6 +1044,11 @@ app.post('/api/updateToko', async (req, res) => {
     
   } catch (error) {
     console.error('Update toko error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('updateToko', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -920,6 +1057,12 @@ app.post('/api/updateToko', async (req, res) => {
 app.post('/api/deleteToko', async (req, res) => {
   try {
     const { idToko, levelAkses } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('deleteToko', req.body, res);
+    }
     
     // Permission check - hanya OWNER
     if (levelAkses !== 'OWNER') {
@@ -941,6 +1084,11 @@ app.post('/api/deleteToko', async (req, res) => {
     
   } catch (error) {
     console.error('Delete toko error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('deleteToko', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -1014,7 +1162,7 @@ app.post('/api/saveTransaksi', async (req, res) => {
     
     console.log('✅ Transaksi saved successfully to PostgreSQL:', idTransaksi);
     
-    // 🔥 HYBRID SYNC: Kirim data ke Google Sheets (BACKGROUND - tidak blocking)
+    // 🔥 HYBRID SYNC: Kirim data ke Google Sheets (BACKGROUND)
     setTimeout(async () => {
       try {
         const syncData = {
@@ -1042,7 +1190,7 @@ app.post('/api/saveTransaksi', async (req, res) => {
       } catch (syncError) {
         console.log('⚠️ Google Sheets sync failed, but data saved to PostgreSQL:', syncError.message);
       }
-    }, 1000); // Delay 1 detik untuk tidak blocking response
+    }, 1000);
     
     // Kirim telegram (background)
     kirimTelegram(idTransaksi, kasir, idToko, total, bayar, kembali, transaksi);
@@ -1056,17 +1204,29 @@ app.post('/api/saveTransaksi', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Save transaksi error:', error);
+    
+    // Fallback ke Google Sheets jika database error
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('saveTransaksi', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   } finally {
     client.release();
   }
 });
 
-// 17. GET LAPORAN - VERSI DIPERBAIKI DENGAN FILTER
+// 17. GET LAPORAN dengan filter yang diperbaiki
 app.post('/api/getLaporan', async (req, res) => {
   try {
     console.log('📊 Get laporan request:', req.body);
     const { startDate, endDate, idToko, levelAkses, filterToko, filterMenu, username } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('getLaporan', req.body, res);
+    }
     
     // Query utama untuk data transaksi
     let query = `
@@ -1092,17 +1252,14 @@ app.post('/api/getLaporan', async (req, res) => {
       levelAkses, idToko, filterToko, filterMenu, startDate, endDate, username
     });
 
-    // 🔥 PERBAIKAN FILTER: Logic yang lebih jelas berdasarkan level akses
-    
+    // Filter berdasarkan level akses
     if (levelAkses === 'ADMIN') {
-      // ADMIN hanya bisa lihat toko sendiri
       paramCount++;
       query += ` AND id_toko = $${paramCount}`;
       params.push(idToko);
       console.log(`✅ Filter ADMIN: id_toko = ${idToko}`);
     } 
     else if (levelAkses === 'KASIR') {
-      // KASIR hanya bisa lihat toko sendiri + transaksi sendiri
       paramCount++;
       query += ` AND id_toko = $${paramCount}`;
       params.push(idToko);
@@ -1116,14 +1273,12 @@ app.post('/api/getLaporan', async (req, res) => {
       }
     }
     else if (levelAkses === 'OWNER') {
-      // OWNER bisa filter berdasarkan toko tertentu
       if (filterToko && filterToko !== '') {
         paramCount++;
         query += ` AND id_toko = $${paramCount}`;
         params.push(filterToko);
         console.log(`✅ Filter OWNER: id_toko = ${filterToko}`);
       }
-      // Jika OWNER tidak pilih filter toko, tampilkan semua toko (tidak ada filter)
     }
 
     // Filter menu
@@ -1165,7 +1320,7 @@ app.post('/api/getLaporan', async (req, res) => {
       totalKembali: result.rows.reduce((sum, item) => sum + (parseFloat(item.kembali) || 0), 0)
     };
 
-    // Analytics sederhana dari data yang sudah diambil
+    // Analytics sederhana
     const itemSales = {};
     result.rows.forEach(row => {
       const itemName = row.item || 'Unknown';
@@ -1178,7 +1333,6 @@ app.post('/api/getLaporan', async (req, res) => {
       .sort((a, b) => b.total_terjual - a.total_terjual)
       .slice(0, 5);
 
-    // Untuk categories, gunakan query terpisah yang lebih reliable
     let topCategories = [];
     try {
       const categoriesQuery = `
@@ -1212,6 +1366,11 @@ app.post('/api/getLaporan', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Get laporan error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('getLaporan', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -1221,6 +1380,12 @@ app.post('/api/getLaporan', async (req, res) => {
 // 18. GET SETTING
 app.post('/api/getSetting', async (req, res) => {
   try {
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('getSetting', req.body, res);
+    }
+    
     const result = await pool.query('SELECT * FROM settings');
     
     const settings = {};
@@ -1232,6 +1397,11 @@ app.post('/api/getSetting', async (req, res) => {
     
   } catch (error) {
     console.error('Get setting error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('getSetting', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -1240,6 +1410,12 @@ app.post('/api/getSetting', async (req, res) => {
 app.post('/api/updateSetting', async (req, res) => {
   try {
     const { settings, levelAkses } = req.body;
+    
+    // Check database status
+    const dbStatus = await checkDatabaseStatus();
+    if (!dbStatus) {
+      return hybridFallback('updateSetting', req.body, res);
+    }
     
     // Permission check - hanya OWNER
     if (levelAkses !== 'OWNER') {
@@ -1258,6 +1434,11 @@ app.post('/api/updateSetting', async (req, res) => {
     
   } catch (error) {
     console.error('Update setting error:', error);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return hybridFallback('updateSetting', req.body, res);
+    }
+    
     handleDatabaseError(error, res);
   }
 });
@@ -1288,20 +1469,17 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🚀 =================================`);
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🗄️ Database: ${process.env.PG_HOST}:${process.env.PG_PORT}`);
-  console.log(`📊 Database Name: ${process.env.PG_DATABASE}`);
+  console.log(`🗄️ Database Host: ${process.env.PG_HOST}`);
+  console.log(`💾 Database Name: ${process.env.PG_DATABASE}`);
+  console.log(`👤 Database User: ${process.env.PG_USER}`);
   console.log(`🌐 Hybrid System: ${GOOGLE_SCRIPT_URL ? 'ACTIVE' : 'INACTIVE'}`);
   console.log(`=================================\n`);
 
   // Test database connection on startup
   try {
-    const client = await pool.connect();
-    console.log('✅ Database connected successfully');
-    const result = await client.query('SELECT NOW()');
-    console.log('📊 Database time:', result.rows[0].now);
-    client.release();
+    await checkDatabaseStatus();
   } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
+    console.error('❌ Startup database test failed:', error.message);
   }
 });
 
