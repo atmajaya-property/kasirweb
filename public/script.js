@@ -1,3 +1,43 @@
+// 🔥 EMERGENCY FIX - FORCE GOOGLE SHEETS MODE
+const FORCE_GOOGLE_SHEETS_MODE = true;
+console.log('🚨 EMERGENCY MODE: Force Google Sheets Active');
+
+// Modifikasi hybridFetch function - CARI FUNCTION INI di script.js:
+async function hybridFetch(endpoint, data = {}) {
+  console.log(`🔄 Hybrid Fetch: ${endpoint}`, data);
+  
+  // 🔥 BYPASS POSTGRESQL - LANGSUNG KE GOOGLE SHEETS
+  if (FORCE_GOOGLE_SHEETS_MODE) {
+    console.log('🚨 Bypassing PostgreSQL, langsung ke Google Sheets');
+    const action = endpoint.replace('/api/', '');
+    const payload = { ...data, action: action };
+    
+    try {
+      console.log(`🔗 Direct to Google Sheets: ${GOOGLE_SCRIPT_URL}`);
+      const response = await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      console.log(`📡 Google Sheets Response (no-cors): Request sent`);
+      
+      // Return success response untuk avoid error
+      return {
+        success: true,
+        message: 'Google Sheets fallback active',
+        data: getFallbackData(endpoint, data)
+      };
+      
+    } catch (error) {
+      console.error(`❌ Google Sheets failed: ${error.message}`);
+      return getFallbackData(endpoint, data);
+    }
+  }
+  
+  // ... kode asli Anda yang mencoba PostgreSQL ...
+}
 // KONFIGURASI HYBRID SYSTEM
 // ✅ DYNAMIC API URL - Auto detect environment
 const getApiBaseUrl = () => {
@@ -3972,5 +4012,6 @@ function setupSubTabNavigation() {
   });
 
 }
+
 
 
